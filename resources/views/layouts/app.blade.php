@@ -6,6 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'WorkDrive')</title>
 
+    <!-- Favicon -->
+    <link rel="icon" href="{{ asset('images/workdrive.svg') }}" type="image/svg+xml">
+
     <link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
 
@@ -16,6 +19,7 @@
     <link rel="stylesheet" href="{{ asset('css/profile-settings.css') }}">
     <link rel="stylesheet" href="{{ asset('css/sidebar-nav-premium.css') }}">
     <link rel="stylesheet" href="{{ asset('css/drive.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/drive-premium.css') }}">
     @stack('styles')
 </head>
 <body class="bg-white3 app-theme">
@@ -29,9 +33,13 @@
 <div class="d-flex app-shell">
     <div class="app-sidebar">
         <div class="app-sidebar-inner">
-            <div class="app-brand-wrap mg-b-10">
-                <div class="app-brand d-flex ai-center jc-center">
-                    <span class="fw-700 clr-white5 fs-15">WD</span>
+            <div class="app-brand-wrap mg-b-10" style="margin-bottom: 32px;">
+                <div class="app-brand">
+                    <img 
+                        src="{{ asset('images/workdrive.svg') }}" 
+                        alt="RFQ Management System Logo" 
+                        class="app-brand-logo"
+                    >
                 </div>
             </div>
 
@@ -214,6 +222,7 @@
 </aside>
 
 <script src="{{ asset('js/workdrive-layout.js') }}"></script>
+<script src="{{ asset('js/drive-premium.js') }}"></script>
 @stack('scripts')
 </body>
 </html>

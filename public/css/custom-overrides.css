@@ -2046,17 +2046,19 @@ body.app-theme {
 }
 
 .app-brand-logo {
-    width: 100%;
-    height: 100%;
+    width: 80px;
+    height: 80px;
     object-fit: contain;
     border-radius: 10px;
+    display: block;
+    margin: 25px 10px 10px;
 }
 
 .app-nav-group-label {
     color: var(--plt3);
     font-size: 12px;
     font-weight: 500;
-    margin: 14px 6px 8px;
+    margin: 25px 6px 8px;
     opacity: 1;
     max-height: 32px;
     overflow: hidden;

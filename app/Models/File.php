@@ -20,11 +20,13 @@ class File extends Model
         'created_by',
         'is_folder',
         'is_shared',
+        'is_starred',
     ];
 
     protected $casts = [
         'is_folder' => 'boolean',
         'is_shared' => 'boolean',
+        'is_starred' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

@@ -27,6 +27,15 @@ Route::middleware(['auth'])->group(function () {
         ->whereIn('kind', ['document', 'spreadsheet', 'presentation'])
         ->name('drive.office.create');
     
+    // SPA File Operations
+    Route::post('/drive/files/{file}/star', [DriveController::class, 'toggleStar'])->name('drive.files.star');
+    Route::post('/drive/files/{file}/rename', [DriveController::class, 'rename'])->name('drive.files.rename');
+    Route::delete('/drive/files/{file}', [DriveController::class, 'destroy'])->name('drive.files.destroy');
+    Route::post('/drive/files/{file}/restore', [DriveController::class, 'restore'])->name('drive.files.restore');
+    Route::delete('/drive/files/{file}/force', [DriveController::class, 'forceDelete'])->name('drive.files.forceDelete');
+    Route::get('/drive/files/{file}/download', [DriveController::class, 'download'])->name('drive.files.download');
+    Route::post('/drive/files/{file}/share', [DriveController::class, 'share'])->name('drive.files.share');
+    
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
