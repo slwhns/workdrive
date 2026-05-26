@@ -36,71 +36,81 @@
 
 /* Prominent 'New' button styling */
 .app-sidebar .app-new-trigger {
-    background: linear-gradient(90deg, rgba(255,123,30,1) 0%, rgba(255,91,4,1) 100%);
-    color: #fff;
-    font-weight: 700;
-    padding: 10px 12px;
-    border-radius: 12px;
-    box-shadow: 0 8px 18px rgba(255,91,4,0.18);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e3e3e3;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 24px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     display: flex;
     align-items: center;
-    gap: 10px;
-    justify-content: flex-start;
+    gap: 12px;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    width: calc(100% - 24px);
+    margin: 10px auto;
 }
 
 .app-sidebar .app-new-trigger .app-nav-icon {
-    background: rgba(255,255,255,0.12);
-    padding: 6px;
-    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-sidebar .app-new-trigger .google-plus-svg {
+    width: 24px;
+    height: 24px;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .app-sidebar .app-new-trigger:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 26px rgba(255,91,4,0.2);
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+}
+
+.app-sidebar .app-new-trigger:hover .google-plus-svg {
+    transform: rotate(90deg);
 }
 
 /* Make sure the button remains visually prominent when sidebar is collapsed */
 .app-sidebar:not(:hover) .app-new-trigger {
-    padding: 8px;
-    justify-content: center;
+    padding: 10px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 50% !important;
+    justify-content: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }
 
-/* Collapsed sidebar: center the + icon box and set its collapsed background color */
 .app-sidebar:not(:hover) .app-new-trigger .app-nav-icon {
-    width: 30px;
-    height: 10px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    background: rgba(255,91,4,0.14); /* warm orange, subtle */
-    color: #fff;
+    margin-right: 0 !important;
 }
 
 .app-sidebar .app-new-menu {
     position: fixed;
     top: var(--new-menu-top, 116px);
-    left: 12px;
-    width: 320px;
-    min-width: 320px;
-    max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 140px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 14px;
-    border-radius: 16px;
-    background: #050505;
+    left: 18px;
+    width: 230px;
+    min-width: 230px;
+    padding: 6px;
+    border-radius: 12px;
+    background: #0d0e12;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.42);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
     display: none;
     z-index: 260;
 }
 
 .app-sidebar .app-new-wrap.is-open .app-new-menu {
     display: grid;
-    gap: 6px;
+    gap: 4px;
 }
 
 .app-sidebar .app-new-menu-form {
@@ -110,46 +120,44 @@
 
 .app-sidebar .app-new-menu-item {
     width: 100%;
-    min-height: 44px;
+    min-height: 36px;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 10px;
-    padding: 11px 12px;
+    gap: 12px;
+    padding: 8px 12px;
     border: none;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    color: #f4f4f5;
+    border-radius: 8px;
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.8) !important;
     text-decoration: none;
     cursor: pointer;
     font: inherit;
     text-align: left;
-    transition: background 0.2s ease, transform 0.2s ease;
+    transition: all 0.15s ease;
     white-space: nowrap;
+    box-shadow: none !important;
 }
 
 .app-sidebar .app-new-menu-form + .app-new-menu-form {
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .app-sidebar .app-new-menu-item:hover {
-    background: linear-gradient(90deg, rgba(255,123,30,0.12) 0%, rgba(255,91,4,0.14) 100%);
-    transform: translateX(2px);
-    color: #fff;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #fff !important;
 }
 
-/* When the new menu is open or an item is focused/active, use a stronger orange state */
 .app-sidebar .app-new-wrap.is-open .app-new-menu-item,
 .app-sidebar .app-new-menu-item:focus,
 .app-sidebar .app-new-menu-item.active {
-    background: linear-gradient(90deg, rgba(255,123,30,0.18) 0%, rgba(255,91,4,0.22) 100%);
-    color: #fff;
-    box-shadow: 0 8px 18px rgba(255,91,4,0.12);
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: #fff !important;
 }
 
 .app-sidebar .app-new-menu-item i {
-    font-size: 16px;
+    font-size: 17px;
 }
 
 .app-sidebar .app-menu-file-input {
@@ -160,19 +168,54 @@
     pointer-events: none;
 }
 
+/* Menu icon colors */
+.menu-icon-folder { color: var(--color-folder); }
+.menu-icon-upload { color: rgba(255, 255, 255, 0.45); }
+.menu-icon-doc { color: var(--color-doc); }
+.menu-icon-sheet { color: var(--color-sheet); }
+.menu-icon-slide { color: var(--color-slide); }
+
+.app-new-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 6px 4px;
+}
+
+body.light-theme .app-new-menu-divider {
+    background: rgba(0, 0, 0, 0.06);
+}
+
 body.light-theme .app-sidebar .app-new-menu {
-    background: #050505;
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.42);
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
 }
 
 body.light-theme .app-sidebar .app-new-menu-item {
-    background: rgba(255, 255, 255, 0.04);
-    color: #f4f4f5;
+    color: #000000 !important;
+    font-weight: 600;
 }
 
 body.light-theme .app-sidebar .app-new-menu-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.04) !important;
+    color: #000000 !important;
+}
+
+body.light-theme .menu-icon-upload {
+    color: rgba(0, 0, 0, 0.45);
+}
+
+body.light-theme .app-sidebar .app-new-trigger {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #000000 !important;
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+}
+
+body.light-theme .app-sidebar .app-new-trigger:hover {
+    background: #f1f3f4;
+    box-shadow: 0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
 }
 
 /* Inactive state hover effect */
@@ -322,4 +365,73 @@ body.light-theme .app-sidebar .nav-btn.app-nav-active {
 
 body.light-theme .app-sidebar .nav-btn.app-nav-active .app-nav-icon {
     filter: drop-shadow(0 0 6px rgba(255, 91, 4, 0.35));
+}
+
+/* Collapsed Sidebar Storage Widget Styling */
+.storage-collapsed-icon-wrap {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 17px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0 auto;
+}
+
+body.light-theme .storage-collapsed-icon-wrap {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.storage-collapsed-icon-wrap:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--accent-orange);
+    border-color: rgba(255, 91, 4, 0.3);
+}
+
+body.light-theme .storage-collapsed-icon-wrap:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--accent-orange);
+}
+
+.storage-collapsed-progress-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #0b0c10;
+    box-shadow: 0 0 6px var(--accent-orange-glow);
+}
+
+body.light-theme .storage-collapsed-progress-dot {
+    border-color: #ffffff;
+}
+
+/* Sidebar collapsed state overrides */
+.app-sidebar:not(:hover) .storage-box {
+    background: transparent !important;
+    border-color: transparent !important;
+    padding: 0 !important;
+    margin-top: 15px !important;
+    box-shadow: none !important;
+}
+
+.app-sidebar:not(:hover) .storage-box .storage-title,
+.app-sidebar:not(:hover) .storage-box .storage-progress,
+.app-sidebar:not(:hover) .storage-box .storage-meta {
+    display: none !important;
+}
+
+.app-sidebar:not(:hover) .storage-box .storage-collapsed-icon-wrap {
+    display: flex !important;
 }

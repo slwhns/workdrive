@@ -1518,7 +1518,7 @@ body.light-theme .modal-field-help  { color: #9ca3af; }
 body.light-theme .modal-field-input,
 body.light-theme .app-main .modal-field-input,
 body.light-theme .modal-body input.modal-field-input,
-body.light-theme .modal-body select.modal-field-input { background: #ffffff !important; border-color: #d1d5db !important; color: #374151 !important; }
+body.light-theme .modal-body select.modal-field-input { background: #ffffff !important; border-color: #d9d9d9 !important; color: #374151 !important; }
 body.light-theme .modal-body select.modal-field-input option { background: #ffffff; color: #374151; }
 body.light-theme .modal-pw-toggle   { color: #666; }
 body.light-theme .modal-pw-toggle:hover { color: #333; }
@@ -2531,4 +2531,10 @@ body:not(.light-theme) .supplier-page #supplier-item-clear-filters:hover,
 body:not(.light-theme) .supplier-page #supplier-items-pagination button:hover:not(:disabled) {
     background: rgba(255,255,255,0.12) !important;
     color: var(--white3) !important;
+}
+
+.sidebar-divider {
+    margin: 1rem 0;
+    border: 0;
+    border-top: 1px solid var(--grey-dark);
 }

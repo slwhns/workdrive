@@ -379,19 +379,46 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="col-actions" aria-hidden="true"></div>
                 </div>
             `;
+            
+            // Draw Folders
+            state.folders.forEach(folder => {
+                html += generateItemCardHtml(folder, true);
+            });
+
+            // Draw Files
+            state.files.forEach(file => {
+                html += generateItemCardHtml(file, false);
+            });
+            
+            grid.innerHTML = html;
+        } else {
+            // Grid mode with beautiful grouped headings for folders and files
+            let gridHtml = '';
+            
+            if (state.folders.length > 0) {
+                gridHtml += `
+                    <div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10" style="grid-column: 1 / -1;">Folders</div>
+                    <div class="folders-grid">
+                `;
+                state.folders.forEach(folder => {
+                    gridHtml += generateItemCardHtml(folder, true);
+                });
+                gridHtml += `</div>`;
+            }
+
+            if (state.files.length > 0) {
+                gridHtml += `
+                    <div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10" style="grid-column: 1 / -1;">Files</div>
+                    <div class="files-grid">
+                `;
+                state.files.forEach(file => {
+                    gridHtml += generateItemCardHtml(file, false);
+                });
+                gridHtml += `</div>`;
+            }
+
+            grid.innerHTML = gridHtml;
         }
-
-        // Draw Folders
-        state.folders.forEach(folder => {
-            html += generateItemCardHtml(folder, true);
-        });
-
-        // Draw Files
-        state.files.forEach(file => {
-            html += generateItemCardHtml(file, false);
-        });
-
-        grid.innerHTML = html;
     }
 
     function generateItemCardHtml(item, isFolder) {
@@ -424,24 +451,177 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             `;
         } else {
-            return `
-                <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}">
-                    <div class="drive-card-top">
-                        <div class="drive-card-icon ${typeInfo.iconColorClass}">
-                            <i class="${typeInfo.icon}"></i>
+            if (isFolder) {
+                // Compact Google Drive-style Folder Card
+                return `
+                    <div class="drive-card folder-card ${selectedClass}" data-item-id="${item.id}" data-item-type="folder">
+                        <div class="folder-card-content">
+                            <div class="drive-card-icon ${typeInfo.iconColorClass}">
+                                <i class="${typeInfo.icon}"></i>
+                            </div>
+                            <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            <div class="folder-card-actions">
+                                <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="folder" title="Star folder"></i>
+                                <button type="button" class="btn-more spa-card-action-trigger" data-item-id="${item.id}" data-item-type="folder">
+                                    <i class="ri-more-2-fill"></i>
+                                </button>
+                            </div>
                         </div>
-                        <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" title="Star file"></i>
                     </div>
-                    <div class="drive-card-info">
-                        <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-                        <div class="drive-card-meta">
-                            <span>${formattedSize}</span>
-                            <span>${formattedDate}</span>
+                `;
+            } else {
+                // Detailed Google Drive-style File Card with Preview Area
+                return `
+                    <div class="drive-card file-card ${selectedClass}" data-item-id="${item.id}" data-item-type="file">
+                        <div class="file-card-header">
+                            <div class="drive-card-icon ${typeInfo.iconColorClass}">
+                                <i class="${typeInfo.icon}"></i>
+                            </div>
+                            <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            <button type="button" class="btn-more spa-card-action-trigger" data-item-id="${item.id}" data-item-type="file">
+                                <i class="ri-more-2-fill"></i>
+                            </button>
                         </div>
+                        
+                        <div class="file-card-preview-area">
+                            ${renderFilePreview(item, typeInfo)}
+                        </div>
+                        
+                        <div class="file-card-footer">
+                            <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="file" title="Star file"></i>
+                            <div class="file-card-meta">
+                                <span>${formattedSize}</span>
+                                <span>•</span>
+                                <span>${formattedDate}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function renderFilePreview(item, typeInfo) {
+        const ext = item.name.split('.').pop().toLowerCase();
+        
+        // If it's an image, render the actual image!
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+            return `
+                <div class="preview-image-wrapper">
+                    <img src="/drive/files/${item.id}/download" alt="${escapeHtml(item.name)}" loading="lazy" class="preview-image">
+                </div>
+            `;
+        }
+        
+        // If it's a PDF, render a simulated PDF document page
+        if (ext === 'pdf') {
+            return `
+                <div class="preview-doc-sim pdf-sim">
+                    <div class="sim-header">
+                        <i class="ri-file-pdf-fill"></i>
+                        <span>PDF Document</span>
+                    </div>
+                    <div class="sim-body">
+                        <div class="sim-line sim-title"></div>
+                        <div class="sim-line"></div>
+                        <div class="sim-line"></div>
+                        <div class="sim-line short"></div>
+                        <div class="sim-block"></div>
                     </div>
                 </div>
             `;
         }
+        
+        // If it's a Word document
+        if (['doc', 'docx'].includes(ext)) {
+            return `
+                <div class="preview-doc-sim word-sim">
+                    <div class="sim-header">
+                        <i class="ri-file-word-2-fill"></i>
+                        <span>Word Document</span>
+                    </div>
+                    <div class="sim-body">
+                        <div class="sim-line sim-title"></div>
+                        <div class="sim-line"></div>
+                        <div class="sim-line"></div>
+                        <div class="sim-line"></div>
+                        <div class="sim-line short"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // If it's an Excel spreadsheet
+        if (['xls', 'xlsx'].includes(ext)) {
+            return `
+                <div class="preview-sheet-sim">
+                    <div class="sim-header">
+                        <i class="ri-file-excel-2-fill"></i>
+                        <span>Spreadsheet</span>
+                    </div>
+                    <div class="sim-sheet-grid">
+                        <div class="sim-cell header"></div>
+                        <div class="sim-cell header"></div>
+                        <div class="sim-cell header"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell highlight"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                        <div class="sim-cell"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // If it's a PowerPoint slide deck
+        if (['ppt', 'pptx'].includes(ext)) {
+            return `
+                <div class="preview-slide-sim">
+                    <div class="sim-header">
+                        <i class="ri-slideshow-3-fill"></i>
+                        <span>Presentation</span>
+                    </div>
+                    <div class="sim-slide-canvas">
+                        <div class="sim-slide-title">TITLE SLIDE</div>
+                        <div class="sim-slide-subtitle">Click to add subtitles</div>
+                        <div class="sim-slide-shape"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // If it's a code file (js, css, html, php, py, json, etc.)
+        if (['js', 'css', 'html', 'php', 'py', 'json', 'sh', 'sql', 'txt'].includes(ext)) {
+            return `
+                <div class="preview-code-sim">
+                    <div class="sim-header">
+                        <i class="ri-code-s-slash-line"></i>
+                        <span>${ext.toUpperCase()} Source</span>
+                    </div>
+                    <div class="sim-code-lines">
+                        <span class="code-ln">1</span> <span class="code-kw">import</span> React <span class="code-kw">from</span> <span class="code-str">'react'</span>;<br>
+                        <span class="code-ln">2</span> <span class="code-kw">const</span> App = () =&gt; {<br>
+                        <span class="code-ln">3</span> &nbsp;&nbsp;console.log(<span class="code-str">"WorkDrive"</span>);<br>
+                        <span class="code-ln">4</span> &nbsp;&nbsp;<span class="code-kw">return</span> &lt;<span class="code-tag">div</span>&gt;Hello&lt;/<span class="code-tag">div</span>&gt;;<br>
+                        <span class="code-ln">5</span> };
+                    </div>
+                </div>
+            `;
+        }
+
+        // Default fallback preview
+        return `
+            <div class="preview-other-sim">
+                <div class="drive-card-icon ${typeInfo.iconColorClass}" style="width: 50px; height: 50px; font-size: 32px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; margin-bottom: 8px; justify-content: center; align-items: center; display: flex;">
+                    <i class="${typeInfo.icon}"></i>
+                </div>
+                <div class="fs-11 clr-grey2">${typeInfo.label}</div>
+            </div>
+        `;
     }
 
     // File type and styling helper
@@ -968,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         for (let i = 0; i < fileList.length; i++) {
             formData.append('files[]', fileList[i]);
-            formData.append('paths[]', fileList[i].webkitRelativePath || fileList[i].name);
+            formData.append('paths[]', fileList[i].webkitRelativePath || fileList[i].customPath || fileList[i].name);
         }
         if (state.currentFolderId) {
             formData.append('parent_id', state.currentFolderId);
@@ -1276,12 +1456,95 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
         });
 
-        window.addEventListener('drop', function(e) {
+        window.addEventListener('drop', async function(e) {
             e.preventDefault();
             dragCounter = 0;
             dragOverlay.classList.remove('active');
 
-            if (state.currentTab === 'index' && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            if (state.currentTab === 'index' && e.dataTransfer.items) {
+                const items = e.dataTransfer.items;
+                const entries = [];
+                const plainFiles = [];
+                let hasFolder = false;
+
+                // Sync phase: extract entries synchronously before they are cleared by the browser
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        if (entry) {
+                            entries.push(entry);
+                        } else if (item.getAsFile) {
+                            const file = item.getAsFile();
+                            if (file) {
+                                plainFiles.push(file);
+                            }
+                        }
+                    }
+                }
+
+                // Async phase: process the extracted entries recursively
+                const files = [];
+
+                async function readEntry(entry, path = '') {
+                    if (entry.isFile) {
+                        return new Promise(resolve => {
+                            entry.file(file => {
+                                file.customPath = path + file.name;
+                                files.push(file);
+                                resolve();
+                            }, err => {
+                                console.error("Error reading file entry:", err);
+                                resolve();
+                            });
+                        });
+                    } else if (entry.isDirectory) {
+                        hasFolder = true;
+                        const dirReader = entry.createReader();
+
+                        const readBatch = () => {
+                            return new Promise(resolve => {
+                                dirReader.readEntries(async batch => {
+                                    resolve(batch);
+                                }, err => {
+                                    console.error("Error reading directory entries:", err);
+                                    resolve([]);
+                                });
+                            });
+                        };
+
+                        let batch;
+                        do {
+                            batch = await readBatch();
+                            for (let i = 0; i < batch.length; i++) {
+                                await readEntry(batch[i], path + entry.name + '/');
+                            }
+                        } while (batch.length > 0);
+                    }
+                }
+
+                // Process all extracted entries
+                for (let i = 0; i < entries.length; i++) {
+                    await readEntry(entries[i]);
+                }
+
+                // Add any plain files extracted synchronously that didn't have entries
+                for (let i = 0; i < plainFiles.length; i++) {
+                    if (!files.some(f => f.name === plainFiles[i].name && f.size === plainFiles[i].size)) {
+                        files.push(plainFiles[i]);
+                    }
+                }
+
+                if (files.length > 0) {
+                    if (hasFolder) {
+                        executeFolderUpload(files);
+                    } else {
+                        executeFileUpload(files);
+                    }
+                } else {
+                    showToast('No files or folders detected.', 'warning');
+                }
+            } else if (state.currentTab === 'index' && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                 executeFileUpload(e.dataTransfer.files);
             }
         });
@@ -1479,18 +1742,36 @@ document.addEventListener('DOMContentLoaded', function () {
         if (widget) {
             const usedStr = formatBytes(state.storageUsed);
             const quotaStr = formatBytes(state.storageQuota);
-            const percent = Math.min(100, Math.max(0, (state.storageUsed / state.storageQuota) * 100)).toFixed(1);
+            
+            const rawPercent = (state.storageUsed / state.storageQuota) * 100;
+            let percentDisplay = '0.0%';
+            let progressWidth = 0;
+
+            if (state.storageUsed > 0) {
+                if (rawPercent < 0.1) {
+                    percentDisplay = '< 0.1%';
+                    progressWidth = 0.5; // Visually show a tiny sliver of progress (0.5%) instead of a blank bar
+                } else {
+                    const pct = Math.min(100, rawPercent);
+                    percentDisplay = pct.toFixed(1) + '%';
+                    progressWidth = pct;
+                }
+            }
 
             widget.innerHTML = `
                 <div class="storage-title">
-                    <span>Storage space</span>
-                    <span>${percent}%</span>
+                    <span><i class="ri-cloud-line" style="margin-right: 4px; vertical-align: middle;"></i> Storage space</span>
+                    <span>${percentDisplay}</span>
                 </div>
                 <div class="storage-progress">
-                    <div class="storage-progress-bar" style="width: ${percent}%;"></div>
+                    <div class="storage-progress-bar" style="width: ${progressWidth}%;"></div>
                 </div>
                 <div class="storage-meta">
                     ${usedStr} used of ${quotaStr}
+                </div>
+                <div class="storage-collapsed-icon-wrap" title="${percentDisplay} (${usedStr} of ${quotaStr})">
+                    <i class="ri-database-2-line"></i>
+                    <div class="storage-collapsed-progress-dot" style="background: var(--accent-orange); opacity: ${state.storageUsed > 0 ? 1 : 0.3};"></div>
                 </div>
             `;
         }

@@ -49,9 +49,6 @@
                 <div class="profile-label">Phone Number</div>
                 <div class="profile-value">{{ $user?->phone ?? '-' }}</div>
 
-                <div class="profile-label">Company</div>
-                <div class="profile-value">{{ $user?->company ?? '-' }}</div>
-
                 <div class="profile-label">Member Since</div>
                 <div class="profile-value">{{ $user?->created_at?->format('M d, Y') ?? '-' }}</div>
             </div>
@@ -66,7 +63,7 @@
 
 <button type="button" id="profile-edit-overlay" class="modal-overlay" onclick="closeProfileEditModal()" aria-label="Close modal"></button>
 
-<div id="profile-edit-modal" class="modal-dialog" style="max-width: 560px;">
+<div id="profile-edit-modal" class="modal-dialog" style="width: 600px; max-width: 90vw;">
     <form id="profile-edit-form" class="modal-content" method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data">
         @csrf
         @method('PUT')
@@ -94,18 +91,13 @@
                 </div>
 
                 <div>
-                    <label for="profile-edit-company" class="fs-12 fw-bold mg-b-5 d-block">Company Name (Optional)</label>
-                    <input id="profile-edit-company" type="text" name="company" class="pd-10 bdr-all-22 br-5 w-100" value="{{ $user?->company ?? '' }}">
-                </div>
-
-                <div>
                     <label for="profile-edit-photo" class="fs-12 fw-bold mg-b-5 d-block">Profile Picture (Optional)</label>
                     <input id="profile-edit-photo" type="file" name="profile_photo" class="pd-10 bdr-all-22 br-5 w-100" accept="image/png,image/jpeg,image/webp">
                     <div class="fs-11 clr-grey1 mg-t-5">Allowed: JPG, PNG, WEBP. Max 2MB.</div>
                 </div>
 
                 <div style="border-top: 1px solid #e0e0e0; padding-top: 15px; margin-top: 15px;">
-                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 15px; color: #1d1d1f;">Change Password (Optional)</h4>
+                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 15px; color: var(--white1-5);">Change Password (Optional)</h4>
                     
                     <div>
                         <label for="current-password" class="fs-12 fw-bold mg-b-5 d-block">Current Password</label>

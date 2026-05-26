@@ -12,14 +12,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
 
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/layout.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom-overrides.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/profile-page.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/profile-settings.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/sidebar-nav-premium.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/drive.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/drive-premium.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/layout.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/custom-overrides.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/profile-page.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/profile-settings.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/sidebar-nav-premium.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/drive.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/drive-premium.css') }}?v={{ time() }}">
     @stack('styles')
 </head>
 <body class="bg-white3 app-theme">
@@ -44,11 +44,18 @@
             </div>
 
             <div class="app-new-wrap mg-b-10">
-                <button type="button" class="nav-btn app-new-trigger pd-10 br-5 txt-none cursor-pointer" id="app-new-trigger" aria-haspopup="true" aria-expanded="false">
-                    <span class="app-nav-icon"><i class="ri-add-line"></i></span>
+                <button type="button" class="nav-btn app-new-trigger cursor-pointer" id="app-new-trigger" aria-haspopup="true" aria-expanded="false">
+                    <span class="app-nav-icon">
+                        <svg viewBox="0 0 36 36" width="36" height="36" class="google-plus-svg">
+                            <path fill="#EA4335" d="M16 16v14h4V20h10v-4H20V6h-4v10H6v4h10z"/>
+                            <path fill="#4285F4" d="M30 16H20v4h10z"/>
+                            <path fill="#FBBC05" d="M6 16v4h10v-4z"/>
+                            <path fill="#34A853" d="M20 16V6h-4v10z"/>
+                        </svg>
+                    </span>
                     <span class="app-nav-text">
                         <span class="app-nav-text-short">New</span>
-                        <span class="app-nav-text-full">Create New</span>
+                        <span class="app-nav-text-full">New</span>
                     </span>
                 </button>
 
@@ -57,7 +64,7 @@
                         @csrf
                         <input type="hidden" name="name" id="new-folder-name">
                         <button type="button" class="app-new-menu-item" data-new-action="folder">
-                            <i class="ri-folder-add-line"></i>
+                            <i class="ri-folder-add-line menu-icon-folder"></i>
                             <span>New Folder</span>
                         </button>
                     </form>
@@ -65,7 +72,7 @@
                     <form method="POST" action="{{ route('drive.upload.files') }}" enctype="multipart/form-data" class="app-new-menu-form">
                         @csrf
                         <label class="app-new-menu-item" for="upload-files-input">
-                            <i class="ri-upload-2-line"></i>
+                            <i class="ri-upload-2-line menu-icon-upload"></i>
                             <span>Upload Files</span>
                         </label>
                         <input id="upload-files-input" type="file" name="files[]" class="app-menu-file-input" multiple>
@@ -74,16 +81,18 @@
                     <form method="POST" action="{{ route('drive.upload.folder') }}" enctype="multipart/form-data" class="app-new-menu-form">
                         @csrf
                         <label class="app-new-menu-item" for="upload-folder-input">
-                            <i class="ri-folder-upload-line"></i>
+                            <i class="ri-folder-upload-line menu-icon-upload"></i>
                             <span>Upload Folder</span>
                         </label>
                         <input id="upload-folder-input" type="file" name="folder_files[]" class="app-menu-file-input" multiple webkitdirectory directory>
                     </form>
 
+                    <div class="app-new-menu-divider"></div>
+
                     <form method="POST" action="{{ route('drive.office.create', ['kind' => 'document']) }}" class="app-new-menu-form">
                         @csrf
                         <button type="submit" class="app-new-menu-item">
-                            <i class="ri-file-word-line"></i>
+                            <i class="ri-file-word-fill menu-icon-doc"></i>
                             <span>New Doc</span>
                         </button>
                     </form>
@@ -91,7 +100,7 @@
                     <form method="POST" action="{{ route('drive.office.create', ['kind' => 'spreadsheet']) }}" class="app-new-menu-form">
                         @csrf
                         <button type="submit" class="app-new-menu-item">
-                            <i class="ri-file-excel-line"></i>
+                            <i class="ri-file-excel-fill menu-icon-sheet"></i>
                             <span>New Spreadsheet</span>
                         </button>
                     </form>
@@ -99,7 +108,7 @@
                     <form method="POST" action="{{ route('drive.office.create', ['kind' => 'presentation']) }}" class="app-new-menu-form">
                         @csrf
                         <button type="submit" class="app-new-menu-item">
-                            <i class="ri-slideshow-line"></i>
+                            <i class="ri-slideshow-3-fill menu-icon-slide"></i>
                             <span>New Presentation</span>
                         </button>
                     </form>
@@ -155,6 +164,8 @@
                     <span class="app-nav-text-full">Trash</span>
                 </span>
             </a>
+
+            <hr class="sidebar-divider">
         </div>
     </div>
 
@@ -221,8 +232,8 @@
     </div>
 </aside>
 
-<script src="{{ asset('js/workdrive-layout.js') }}"></script>
-<script src="{{ asset('js/drive-premium.js') }}"></script>
+<script src="{{ asset('js/workdrive-layout.js') }}?v={{ time() }}"></script>
+<script src="{{ asset('js/drive-premium.js') }}?v={{ time() }}"></script>
 @stack('scripts')
 </body>
 </html>
