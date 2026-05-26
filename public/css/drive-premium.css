@@ -1140,10 +1140,10 @@ body.light-theme .grid-section-title {
 
 /* Compact Folder Card */
 .drive-card.folder-card {
-    min-height: 48px !important;
-    height: 48px !important;
-    padding: 8px 12px !important;
-    border-radius: 10px !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: 6px 10px !important;
+    border-radius: 8px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -1153,21 +1153,21 @@ body.light-theme .grid-section-title {
     display: flex;
     align-items: center;
     width: 100%;
-    gap: 12px;
+    gap: 8px;
 }
 
 .folder-card-content .drive-card-icon {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    font-size: 20px;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    font-size: 16px;
     margin-bottom: 0 !important;
     background: transparent !important;
 }
 
 .folder-card-content .drive-card-title {
     margin-bottom: 0 !important;
-    font-size: 13.5px !important;
+    font-size: 12.5px !important;
     flex-grow: 1;
     white-space: nowrap;
     overflow: hidden;
@@ -1177,7 +1177,7 @@ body.light-theme .grid-section-title {
 .folder-card-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .folder-card-actions .drive-card-star {
