@@ -55,6 +55,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         var isOpen = newWrap.classList.toggle('is-open');
+        if (isOpen) {
+            var triggerRect = newTrigger.getBoundingClientRect();
+            newWrap.style.setProperty('--new-menu-top', Math.round(triggerRect.bottom + 8) + 'px');
+        }
         newTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     }
 
@@ -140,8 +144,46 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    window.addEventListener('resize', function () {
+        if (newWrap && newWrap.classList.contains('is-open') && newTrigger) {
+            var triggerRect = newTrigger.getBoundingClientRect();
+            newWrap.style.setProperty('--new-menu-top', Math.round(triggerRect.bottom + 8) + 'px');
+        }
+    });
+
     var savedTheme = localStorage.getItem(themeStorageKey) || 'dark';
     applyTheme(savedTheme);
+
+    // Drive view toggles (grid / list)
+    var viewToggleList = document.getElementById('view-toggle-list');
+    var viewToggleGrid = document.getElementById('view-toggle-grid');
+    var driveGrid = document.getElementById('drive-grid');
+    var driveViewKey = 'drive_view_mode';
+
+    function setDriveView(mode) {
+        if (!driveGrid) return;
+        if (mode === 'list') {
+            driveGrid.classList.add('list-view');
+        } else {
+            driveGrid.classList.remove('list-view');
+        }
+
+        if (viewToggleList) viewToggleList.classList.toggle('active', mode === 'list');
+        if (viewToggleGrid) viewToggleGrid.classList.toggle('active', mode !== 'list');
+
+        if (viewToggleList) viewToggleList.setAttribute('aria-pressed', mode === 'list');
+        if (viewToggleGrid) viewToggleGrid.setAttribute('aria-pressed', mode !== 'list');
+
+        try { localStorage.setItem(driveViewKey, mode); } catch (e) { /* ignore */ }
+    }
+
+    if (viewToggleList) viewToggleList.addEventListener('click', function (e) { e.stopPropagation(); setDriveView('list'); });
+    if (viewToggleGrid) viewToggleGrid.addEventListener('click', function (e) { e.stopPropagation(); setDriveView('grid'); });
+
+    var savedView = (function () {
+        try { return localStorage.getItem(driveViewKey); } catch (e) { return null; }
+    })() || 'grid';
+    setDriveView(savedView);
 
     themeToggleBtn && themeToggleBtn.addEventListener('click', function () {
         var nextTheme = document.body.classList.contains('light-theme') ? 'dark' : 'light';

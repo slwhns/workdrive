@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="{{ asset('css/profile-page.css') }}">
     <link rel="stylesheet" href="{{ asset('css/profile-settings.css') }}">
     <link rel="stylesheet" href="{{ asset('css/sidebar-nav-premium.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/drive.css') }}">
     @stack('styles')
 </head>
 <body class="bg-white3 app-theme">
@@ -132,7 +133,7 @@
             </a>
 
             <a href="{{ route('drive.starred') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.starred') ? 'app-nav-active' : '' }}">
-                <span class="app-nav-icon"><i class="ri-file-marked-line"></i></span>
+                <span class="app-nav-icon"><i class="ri-star-line"></i></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Starred</span>
                     <span class="app-nav-text-full">Starred Files</span>

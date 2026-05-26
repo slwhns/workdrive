@@ -34,14 +34,60 @@
     width: 100%;
 }
 
+/* Prominent 'New' button styling */
+.app-sidebar .app-new-trigger {
+    background: linear-gradient(90deg, rgba(255,123,30,1) 0%, rgba(255,91,4,1) 100%);
+    color: #fff;
+    font-weight: 700;
+    padding: 10px 12px;
+    border-radius: 12px;
+    box-shadow: 0 8px 18px rgba(255,91,4,0.18);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-start;
+}
+
+.app-sidebar .app-new-trigger .app-nav-icon {
+    background: rgba(255,255,255,0.12);
+    padding: 6px;
+    border-radius: 8px;
+}
+
+.app-sidebar .app-new-trigger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px rgba(255,91,4,0.2);
+}
+
+/* Make sure the button remains visually prominent when sidebar is collapsed */
+.app-sidebar:not(:hover) .app-new-trigger {
+    padding: 8px;
+    justify-content: center;
+}
+
+/* Collapsed sidebar: center the + icon box and set its collapsed background color */
+.app-sidebar:not(:hover) .app-new-trigger .app-nav-icon {
+    width: 30px;
+    height: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(255,91,4,0.14); /* warm orange, subtle */
+    color: #fff;
+}
+
 .app-sidebar .app-new-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: -8px;
-    width: 288px;
-    min-width: 288px;
+    position: fixed;
+    top: var(--new-menu-top, 116px);
+    left: 12px;
+    width: 320px;
+    min-width: 320px;
     max-width: calc(100vw - 24px);
-    padding: 12px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px;
     border-radius: 16px;
     background: #050505;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -59,12 +105,16 @@
 
 .app-sidebar .app-new-menu-form {
     margin: 0;
+    width: 100%;
 }
 
 .app-sidebar .app-new-menu-item {
     width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 10px;
     padding: 11px 12px;
     border: none;
@@ -76,11 +126,26 @@
     font: inherit;
     text-align: left;
     transition: background 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+}
+
+.app-sidebar .app-new-menu-form + .app-new-menu-form {
+    margin-top: 6px;
 }
 
 .app-sidebar .app-new-menu-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: linear-gradient(90deg, rgba(255,123,30,0.12) 0%, rgba(255,91,4,0.14) 100%);
     transform: translateX(2px);
+    color: #fff;
+}
+
+/* When the new menu is open or an item is focused/active, use a stronger orange state */
+.app-sidebar .app-new-wrap.is-open .app-new-menu-item,
+.app-sidebar .app-new-menu-item:focus,
+.app-sidebar .app-new-menu-item.active {
+    background: linear-gradient(90deg, rgba(255,123,30,0.18) 0%, rgba(255,91,4,0.22) 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(255,91,4,0.12);
 }
 
 .app-sidebar .app-new-menu-item i {
