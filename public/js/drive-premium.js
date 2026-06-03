@@ -18,7 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
         breadcrumbs: [],
         currentFolder: null,
         storageUsed: 0,            // Total storage used in bytes
-        storageQuota: 5368709120   // 5 GB Quota
+        storageQuota: 5368709120,  // 5 GB Quota
+        docEditor: null            // OnlyOffice editor instance
     };
 
     // Grab CSRF token
@@ -182,6 +183,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 renderSPAView();
                 fetchStorageUsage(); // Update storage panel
+
+                // Check for open_file_id parameter to auto-launch
+                const urlParams = new URLSearchParams(window.location.search);
+                const openFileId = urlParams.get('open_file_id');
+                if (openFileId) {
+                    // Clean up parameter from URL so it doesn't reopen on manual page refresh
+                    urlParams.delete('open_file_id');
+                    const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                    window.history.replaceState(null, '', cleanUrl);
+
+                    launchEditor(openFileId);
+                }
             }
         })
         .catch(err => {
@@ -434,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (state.viewMode === 'list') {
             return `
-                <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}">
+                <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" data-file-id="${item.id}" data-is-folder="${isFolder}">
                     <div class="drive-card-top">
                         <div class="drive-card-icon ${typeInfo.iconColorClass}">
                             <i class="${typeInfo.icon}"></i>
@@ -454,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isFolder) {
                 // Compact Google Drive-style Folder Card
                 return `
-                    <div class="drive-card folder-card ${selectedClass}" data-item-id="${item.id}" data-item-type="folder">
+                    <div class="drive-card folder-card ${selectedClass}" data-item-id="${item.id}" data-item-type="folder" data-file-id="${item.id}" data-is-folder="true">
                         <div class="folder-card-content">
                             <div class="drive-card-icon ${typeInfo.iconColorClass}">
                                 <i class="${typeInfo.icon}"></i>
@@ -472,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 // Detailed Google Drive-style File Card with Preview Area
                 return `
-                    <div class="drive-card file-card ${selectedClass}" data-item-id="${item.id}" data-item-type="file">
+                    <div class="drive-card file-card ${selectedClass}" data-item-id="${item.id}" data-item-type="file" data-file-id="${item.id}" data-is-folder="false">
                         <div class="file-card-header">
                             <div class="drive-card-icon ${typeInfo.iconColorClass}">
                                 <i class="${typeInfo.icon}"></i>
@@ -499,9 +512,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 `;
             }
         }
-    }
-
-    function renderFilePreview(item, typeInfo) {
+    }    function renderFilePreview(item, typeInfo) {
         const ext = item.name.split('.').pop().toLowerCase();
         
         // If it's an image, render the actual image!
@@ -513,6 +524,28 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         }
         
+        const officeExtensions = [
+            'docx', 'doc', 'docm', 'dot', 'dotx', 'epub', 'fodt', 'htm', 'html', 'mht', 'mhtml', 'odt', 'ott', 'rtf', 'txt', 'djvu', 'xps', 'oxps',
+            'xlsx', 'xls', 'xlsm', 'xlt', 'xltx', 'csv', 'fods', 'ods', 'ots',
+            'pptx', 'ppt', 'pptm', 'pot', 'potx', 'pps', 'ppsx', 'fodp', 'odp', 'otp', 'pdf'
+        ];
+
+        if (officeExtensions.includes(ext)) {
+            const mockHtml = getMockPreviewHtml(ext, typeInfo, item);
+            return `
+                <div class="preview-thumbnail-wrapper" style="width:100%; height:100%; position:relative;">
+                    <img src="/drive/files/${item.id}/thumbnail" alt="${escapeHtml(item.name)}" loading="lazy" class="real-thumbnail" style="width:100%; height:100%; object-fit:cover; object-position:top; position:absolute; top:0; left:0; z-index:2; background:#ffffff;" onerror="this.style.display='none';">
+                    <div class="thumbnail-fallback" style="width:100%; height:100%; position:absolute; top:0; left:0; z-index:1;">
+                        ${mockHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        return getMockPreviewHtml(ext, typeInfo, item);
+    }
+
+    function getMockPreviewHtml(ext, typeInfo, item) {
         // If it's a PDF, render a simulated PDF document page
         if (ext === 'pdf') {
             return `
@@ -551,7 +584,7 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         }
         
-        // If it's an Excel spreadsheet
+        // If it's a Excel spreadsheet
         if (['xls', 'xlsx'].includes(ext)) {
             return `
                 <div class="preview-sheet-sim">
@@ -768,8 +801,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     navigateSPA(state.currentTab, itemId);
                 } else {
-                    // Open preview modal / OnlyOffice launcher
-                    launchPreview(itemId);
+                    // Open OnlyOffice editor in edit mode
+                    launchEditor(itemId);
                 }
             });
 
@@ -881,8 +914,13 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             menuHtml = `
                 <button type="button" class="context-menu-item" id="ctx-open">
-                    <i class="${isFolder ? 'ri-folder-open-line' : 'ri-eye-line'}"></i> <span>Open</span>
+                    <i class="${isFolder ? 'ri-folder-open-line' : 'ri-play-line'}"></i> <span>${isFolder ? 'Open' : 'Open in OnlyOffice'}</span>
                 </button>
+                ${!isFolder ? `
+                    <button type="button" class="context-menu-item" id="ctx-preview">
+                        <i class="ri-eye-line"></i> <span>Preview</span>
+                    </button>
+                ` : ''}
                 <button type="button" class="context-menu-item" id="ctx-star">
                     <i class="${isStarred ? 'ri-star-fill' : 'ri-star-line'}" style="${isStarred ? 'color:#ffb300' : ''}"></i> 
                     <span>${isStarred ? 'Unstar' : 'Star'}</span>
@@ -918,8 +956,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isFolder) {
                 navigateSPA(state.currentTab, state.selectedItem.id);
             } else {
-                launchPreview(state.selectedItem.id);
+                launchEditor(state.selectedItem.id);
             }
+        });
+
+        document.getElementById('ctx-preview')?.addEventListener('click', () => {
+            closeContextMenu();
+            launchPreview(state.selectedItem.id);
         });
 
         document.getElementById('ctx-star')?.addEventListener('click', () => {
@@ -1347,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ------------------------------------------
     // 10. ONLYOFFICE PREVIEW SHELL MOCKUP
     // ------------------------------------------
-    function launchPreview(fileId) {
+    function launchEditor(fileId) {
         const file = state.files.find(f => f.id === parseInt(fileId));
         if (!file || !onlyOfficeEditor) return;
 
@@ -1360,70 +1403,189 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show editor modal
         onlyOfficeEditor.classList.add('active');
-        if (loader) loader.style.opacity = '1';
-        if (loader) loader.style.display = 'flex';
+        if (loader) {
+            loader.style.opacity = '1';
+            loader.style.display = 'flex';
+        }
 
         const ext = file.name.split('.').pop().toLowerCase();
-        let appLabel = 'Document Suite';
-        let docTitle = 'WorkDrive Document';
-        let iconClass = 'ri-file-word-2-line clr-blue';
-
-        if (ext === 'xlsx' || ext === 'xls') {
-            appLabel = 'Spreadsheet Suite';
-            docTitle = 'Financial Model & Data Analysis';
-            iconClass = 'ri-file-excel-2-line clr-green';
-        } else if (ext === 'pptx' || ext === 'ppt') {
-            appLabel = 'Presentation Suite';
-            docTitle = 'Corporate Keynote Deck';
-            iconClass = 'ri-slideshow-3-line clr-orange';
-        } else if (ext === 'pdf') {
-            appLabel = 'PDF Viewer';
-            docTitle = 'Rendered Portable Document';
-            iconClass = 'ri-file-pdf-line clr-red';
-        } else if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
-            appLabel = 'Lightbox Viewer';
-            docTitle = 'Image Lightbox Preview';
-            iconClass = 'ri-image-2-line clr-purple';
+        
+        // Clean up previous editor if exists
+        if (state.docEditor) {
+            try {
+                state.docEditor.destroyEditor();
+            } catch (e) {
+                console.error(e);
+            }
+            state.docEditor = null;
         }
 
-        if (apptag) apptag.textContent = appLabel;
-
-        // Render mockup editor interface inside A4 paper mockup
+        // Clear mockDoc container
         if (mockDoc) {
-            mockDoc.innerHTML = `
-                <div class="onlyoffice-mock-header">
-                    <span>${appLabel} | Powered by OnlyOffice</span>
-                    <span>Last modified: ${formatDate(file.updated_at)}</span>
-                </div>
-                <div>
-                    <h2 class="onlyoffice-mock-title"><i class="${iconClass}"></i> ${escapeHtml(file.name)}</h2>
-                    <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.1); margin-top:20px; margin-bottom: 20px;">
-                    <div class="onlyoffice-mock-body">
-                        <p style="font-size: 16px; margin-bottom: 12px;"><strong>Welcome to the WorkDrive Premium Workspace!</strong></p>
-                        <p style="margin-bottom: 12px;">This is a fully styled client-side placeholder mockup designed for the <strong>OnlyOffice Integration APIs</strong>. Currently, local file storage operations are structured around Laravel's default abstracted system which is fully compatible with <strong>Contabo Object Storage</strong>.</p>
-                        <div style="background: rgba(255, 91, 4, 0.04); border-left: 4px solid var(--accent-orange); padding: 15px; border-radius: 6px; margin-top: 25px; margin-bottom: 25px;">
-                            <p style="font-size: 13px; color: #222; margin: 0;"><strong>Developer Notice:</strong> You can easily wire the real OnlyOffice document editing frame in ` + "`c:\\xampp\\htdocs\\workdrive\\public\\js\\drive-premium.js`" + ` inside the ` + "`launchPreview`" + ` function once you obtain your OnlyOffice API license keys!</p>
-                        </div>
-                        <p>Feel free to click <strong>Save & Close Document</strong> above to return back to your Single Page Application workspace.</p>
-                    </div>
-                </div>
-                <div class="onlyoffice-mock-footer">
-                    <span>WorkDrive Company Internal Suite | File Storage Abstraction ready for S3 Driver</span>
-                </div>
-            `;
+            mockDoc.innerHTML = '';
         }
 
-        // Simulate OnlyOffice Loading screen (1s delay)
-        setTimeout(() => {
+        // Check file type
+        const officeExtensions = [
+            'docx', 'doc', 'docm', 'dot', 'dotx', 'epub', 'fodt', 'htm', 'html', 'mht', 'mhtml', 'odt', 'ott', 'rtf', 'txt', 'djvu', 'xps', 'oxps',
+            'xlsx', 'xls', 'xlsm', 'xlt', 'xltx', 'csv', 'fods', 'ods', 'ots',
+            'pptx', 'ppt', 'pptm', 'pot', 'potx', 'pps', 'ppsx', 'fodp', 'odp', 'otp'
+        ];
+
+        if (officeExtensions.includes(ext)) {
+            if (mockDoc) mockDoc.classList.add('full-workspace');
+            let appLabel = 'Document Suite';
+            if (['xlsx', 'xls', 'csv', 'ods'].includes(ext)) {
+                appLabel = 'Spreadsheet Suite';
+            } else if (['pptx', 'ppt', 'odp'].includes(ext)) {
+                appLabel = 'Presentation Suite';
+            }
+            if (apptag) apptag.textContent = appLabel + ' (OnlyOffice)';
+
+            // Fetch configuration and initialize DocEditor
+            const initEditor = () => {
+                fetch(`/office/config/${file.id}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error('Failed to load document configuration.');
+                        return res.json();
+                    })
+                    .then(config => {
+                        // Create iframe container
+                        const iframeContainer = document.createElement('div');
+                        iframeContainer.id = 'onlyoffice-iframe-container';
+                        iframeContainer.style.width = '100%';
+                        iframeContainer.style.height = '100%';
+                        if (mockDoc) mockDoc.appendChild(iframeContainer);
+
+                        // Instantiate Editor
+                        state.docEditor = new DocsAPI.DocEditor("onlyoffice-iframe-container", config);
+
+                        // Hide loader
+                        if (loader) {
+                            loader.style.opacity = '0';
+                            setTimeout(() => loader.style.display = 'none', 500);
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        showToast(err.message || 'Error loading OnlyOffice editor.', 'error');
+                        if (mockDoc) {
+                            mockDoc.innerHTML = `
+                                <div class="d-flex fd-column ai-center jc-center text-center pd-30" style="height: 100%;">
+                                    <i class="ri-error-warning-line fs-40 clr-red mg-b-10"></i>
+                                    <div class="fs-16 fw-600 clr-white">Load Error</div>
+                                    <div class="fs-13 clr-grey2 mg-t-8">Could not retrieve configuration for this document.</div>
+                                </div>
+                            `;
+                        }
+                        if (loader) {
+                            loader.style.opacity = '0';
+                            setTimeout(() => loader.style.display = 'none', 500);
+                        }
+                    });
+            };
+
+            // Dynamically load ONLYOFFICE DocsAPI JavaScript library if not already loaded
+            if (typeof DocsAPI === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://onlyoffice.khaleefapps.com/web-apps/apps/api/documents/api.js';
+                script.onload = initEditor;
+                script.onerror = () => {
+                    showToast('Failed to load OnlyOffice DocServer API script. Check your server connection.', 'error');
+                    if (loader) {
+                        loader.style.opacity = '0';
+                        setTimeout(() => loader.style.display = 'none', 500);
+                    }
+                };
+                document.head.appendChild(script);
+            } else {
+                initEditor();
+            }
+
+        } else if (ext === 'pdf') {
+            if (apptag) apptag.textContent = 'PDF Reader';
+            if (mockDoc) {
+                mockDoc.classList.add('full-workspace');
+                mockDoc.innerHTML = `
+                    <iframe src="/drive/files/${file.id}/download" style="width: 100%; height: 100%; border: none; background: #1e1e1e;"></iframe>
+                `;
+            }
             if (loader) {
                 loader.style.opacity = '0';
                 setTimeout(() => loader.style.display = 'none', 500);
             }
-        }, 1200);
+
+        } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+            if (apptag) apptag.textContent = 'Lightbox Viewer';
+            if (mockDoc) {
+                mockDoc.classList.add('full-workspace');
+                mockDoc.innerHTML = `
+                    <div class="d-flex ai-center jc-center" style="width: 100%; height: 100%; padding: 20px; background: rgba(0,0,0,0.85); box-sizing: border-box;">
+                        <img src="/drive/files/${file.id}/download" alt="${escapeHtml(file.name)}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    </div>
+                `;
+            }
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+            }
+
+        } else {
+            // Default other type file preview / download recommendation
+            if (apptag) apptag.textContent = 'Preview Not Available';
+            if (mockDoc) {
+                mockDoc.classList.remove('full-workspace');
+                mockDoc.innerHTML = `
+                    <div class="d-flex fd-column ai-center jc-center text-center pd-30" style="height: 100%;">
+                        <i class="ri-file-unknow-line fs-50 clr-grey2 mg-b-15"></i>
+                        <div class="fs-18 fw-700 clr-white">No Preview Available</div>
+                        <div class="fs-13 clr-grey2 mg-t-8" style="max-width: 350px;">This file type (.${ext}) cannot be previewed in the browser.</div>
+                        <button class="btn btn-primary mg-t-20" id="btn-fallback-download"><i class="ri-download-line"></i> Download file</button>
+                    </div>
+                `;
+                document.getElementById('btn-fallback-download')?.addEventListener('click', () => {
+                    executeDownload(file.id);
+                });
+            }
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+            }
+        }
     }
+
+    function launchPreview(fileId) {
+        if (window.PreviewModal) {
+            window.PreviewModal.open(fileId);
+        } else {
+            window.location.href = '/preview/' + fileId;
+        }
+    }
+
+    // Expose functions to window
+    window.launchEditor = launchEditor;
+    window.launchPreview = launchPreview;
 
     document.getElementById('btn-close-onlyoffice')?.addEventListener('click', () => {
         if (onlyOfficeEditor) onlyOfficeEditor.classList.remove('active');
+        const mockDoc = onlyOfficeEditor?.querySelector('.onlyoffice-mock-doc');
+        if (mockDoc) {
+            mockDoc.classList.remove('full-workspace');
+            mockDoc.innerHTML = '';
+        }
+        
+        // Clean up editor instance if active
+        if (state.docEditor) {
+            try {
+                state.docEditor.destroyEditor();
+            } catch (e) {
+                console.error(e);
+            }
+            state.docEditor = null;
+        }
+
+        // Refresh the view so size / date is updated
+        loadCurrentView(false);
     });
 
     // ------------------------------------------

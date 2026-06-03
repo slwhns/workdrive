@@ -4,12 +4,18 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Drive\DriveController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Office\OnlyOfficeController;
+use App\Http\Controllers\Preview\FilePreviewController;
 
 // Public routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->name('login.store');
 });
+
+// OnlyOffice Public callback and signed download routes (No auth session checks)
+Route::get('/office/download/{file}', [OnlyOfficeController::class, 'download'])->name('onlyoffice.download');
+Route::post('/office/callback', [OnlyOfficeController::class, 'callback'])->name('onlyoffice.callback');
 
 // Authenticated routes - Drive
 Route::middleware(['auth'])->group(function () {
@@ -27,6 +33,10 @@ Route::middleware(['auth'])->group(function () {
         ->whereIn('kind', ['document', 'spreadsheet', 'presentation'])
         ->name('drive.office.create');
     
+    // OnlyOffice Config route
+    Route::get('/office/config/{file}', [OnlyOfficeController::class, 'getConfig'])->name('onlyoffice.config');
+    Route::get('/drive/files/{file}/thumbnail', [OnlyOfficeController::class, 'thumbnail'])->name('drive.files.thumbnail');
+    
     // SPA File Operations
     Route::post('/drive/files/{file}/star', [DriveController::class, 'toggleStar'])->name('drive.files.star');
     Route::post('/drive/files/{file}/rename', [DriveController::class, 'rename'])->name('drive.files.rename');
@@ -35,6 +45,10 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/drive/files/{file}/force', [DriveController::class, 'forceDelete'])->name('drive.files.forceDelete');
     Route::get('/drive/files/{file}/download', [DriveController::class, 'download'])->name('drive.files.download');
     Route::post('/drive/files/{file}/share', [DriveController::class, 'share'])->name('drive.files.share');
+    
+    // File Preview routes
+    Route::get('/preview/{file}', [FilePreviewController::class, 'show'])->name('preview.show');
+    Route::get('/api/preview/{file}', [FilePreviewController::class, 'getPreviewData'])->name('api.preview.data');
     
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');

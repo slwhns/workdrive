@@ -411,7 +411,7 @@ class DriveController extends Controller
 
         Storage::disk('public')->put($storagePath, '');
 
-        File::create([
+        $file = File::create([
             'name' => $template['name'],
             'path' => $storagePath,
             'type' => 'file',
@@ -423,7 +423,12 @@ class DriveController extends Controller
             'parent_id' => $request->query('parent_id') ?? null
         ]);
 
-        return redirect()->route('drive.index')->with('status', ucfirst($kind) . ' created successfully.');
+        $redirectUrl = route('drive.index', array_filter([
+            'folder_id' => $file->parent_id,
+            'open_file_id' => $file->id
+        ]));
+
+        return redirect($redirectUrl)->with('status', ucfirst($kind) . ' created successfully.');
     }
 
     /**

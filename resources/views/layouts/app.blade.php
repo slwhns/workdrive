@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="{{ asset('css/sidebar-nav-premium.css') }}?v={{ time() }}">
     <link rel="stylesheet" href="{{ asset('css/drive.css') }}?v={{ time() }}">
     <link rel="stylesheet" href="{{ asset('css/drive-premium.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/preview.css') }}?v={{ time() }}">
     @stack('styles')
 </head>
 <body class="bg-white3 app-theme">
@@ -232,8 +233,12 @@
     </div>
 </aside>
 
+@include('components.preview-modal')
+
 <script src="{{ asset('js/workdrive-layout.js') }}?v={{ time() }}"></script>
+<script src="{{ asset('js/app.js') }}?v={{ time() }}"></script>
 <script src="{{ asset('js/drive-premium.js') }}?v={{ time() }}"></script>
+<script src="{{ asset('js/preview.js') }}?v={{ time() }}"></script>
 @stack('scripts')
 </body>
 </html>

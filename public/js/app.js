@@ -48,4 +48,55 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log('New button clicked');
         });
     }
+
+    // File preview click handlers
+    setupFilePreviewHandlers();
 });
+
+/**
+ * Setup file preview click handlers
+ */
+function setupFilePreviewHandlers() {
+    // Add click handlers to all file items that support preview
+    document.addEventListener('dblclick', function (e) {
+        const fileItem = e.target.closest('[data-file-id]');
+        if (fileItem && !e.target.closest('.file-menu, .checkbox, .action-button')) {
+            const fileId = fileItem.getAttribute('data-file-id');
+            const isFolder = fileItem.getAttribute('data-is-folder') === 'true';
+            
+            if (!isFolder && fileId) {
+                // If SPA editor launcher is active, let drive-premium handle it
+                if (typeof window.launchEditor === 'function') {
+                    return;
+                }
+                openFilePreview(fileId);
+            }
+        }
+    }, true);
+
+    // Right-click context menu preview option
+    document.addEventListener('contextmenu', function (e) {
+        const fileItem = e.target.closest('[data-file-id]');
+        if (fileItem) {
+            const fileId = fileItem.getAttribute('data-file-id');
+            const isFolder = fileItem.getAttribute('data-is-folder') === 'true';
+            
+            if (!isFolder && fileId) {
+                // Context menu will be handled separately
+                const menuEvent = new CustomEvent('fileContextMenu', {
+                    detail: { fileId: fileId }
+                });
+                document.dispatchEvent(menuEvent);
+            }
+        }
+    }, true);
+}
+
+/**
+ * Open file preview
+ */
+function openFilePreview(fileId) {
+    if (fileId) {
+        window.location.href = '/preview/' + fileId;
+    }
+}

@@ -939,6 +939,18 @@ body.light-theme .breadcrumbs span.active {
     }
 }
 
+.onlyoffice-mock-doc.full-workspace {
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: #181b22 !important;
+    box-shadow: none !important;
+    display: block !important;
+}
+
 .onlyoffice-mock-header {
     border-bottom: 2px solid #ddd;
     padding-bottom: 10px;
