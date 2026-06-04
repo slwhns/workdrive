@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/drive/files/{file}/restore', [DriveController::class, 'restore'])->name('drive.files.restore');
     Route::delete('/drive/files/{file}/force', [DriveController::class, 'forceDelete'])->name('drive.files.forceDelete');
     Route::get('/drive/files/{file}/download', [DriveController::class, 'download'])->name('drive.files.download');
+    Route::get('/drive/files/{file}/inline', [DriveController::class, 'inline'])->name('drive.files.inline');
     Route::post('/drive/files/{file}/share', [DriveController::class, 'share'])->name('drive.files.share');
     
     // File Preview routes

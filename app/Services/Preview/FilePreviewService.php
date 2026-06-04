@@ -144,12 +144,12 @@ class FilePreviewService
      */
     private function getPdfPreview(File $file): array
     {
-        $downloadUrl = route('drive.files.download', ['file' => $file->id]);
+        $inlineUrl = route('drive.files.inline', ['file' => $file->id]);
 
         return [
             'type' => 'pdf',
             'filename' => $file->name,
-            'url' => $downloadUrl,
+            'url' => $inlineUrl,
             'size' => $this->formatFileSize($file->size),
             'created_at' => $file->created_at->format('M d, Y'),
             'updated_at' => $file->updated_at->format('M d, Y H:i'),

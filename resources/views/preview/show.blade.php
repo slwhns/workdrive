@@ -54,7 +54,7 @@
     </div>
 
     <!-- Preview Content Area -->
-    <div class="preview-content">
+    <div class="preview-content" style="position: relative;">
         @switch($previewData['type'])
             @case('office')
                 @include('preview.types.office', ['data' => $previewData, 'file' => $file])
@@ -80,6 +80,29 @@
             @default
                 @include('preview.types.unsupported', ['data' => $previewData, 'file' => $file])
         @endswitch
+
+        <!-- Navigation Buttons -->
+        @if(isset($prevFileId))
+            <a href="{{ route('preview.show', ['file' => $prevFileId]) }}" class="preview-nav-btn prev-btn" id="preview-prev-btn" title="Previous File">
+                <i class="ri-arrow-left-s-line"></i>
+            </a>
+        @endif
+        @if(isset($nextFileId))
+            <a href="{{ route('preview.show', ['file' => $nextFileId]) }}" class="preview-nav-btn next-btn" id="preview-next-btn" title="Next File">
+                <i class="ri-arrow-right-s-line"></i>
+            </a>
+        @endif
+
+        <!-- Floating Zoom Panel -->
+        @if($previewData['type'] === 'image')
+            <div class="preview-zoom-panel" id="preview-zoom-panel">
+                <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out"><i class="ri-zoom-out-line"></i></button>
+                <span class="zoom-value" id="zoom-value">100%</span>
+                <button class="zoom-btn" id="btn-zoom-in" title="Zoom In"><i class="ri-zoom-in-line"></i></button>
+                <div class="zoom-divider"></div>
+                <button class="zoom-btn" id="btn-zoom-reset" title="Reset Zoom"><i class="ri-aspect-ratio-line"></i></button>
+            </div>
+        @endif
     </div>
 
     <!-- Preview Sidebar (File Info) -->

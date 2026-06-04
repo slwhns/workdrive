@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
         // ESC to close preview
         if (e.key === 'Escape') {
             window.history.back();
@@ -74,26 +76,110 @@ document.addEventListener('DOMContentLoaded', function() {
             const downloadBtn = document.querySelector('a[href*="/download"]');
             if (downloadBtn) downloadBtn.click();
         }
+
+        // Standalone Preview Sibling Navigation
+        if (e.key === 'ArrowLeft') {
+            // Check if pdf page switcher exists and is active. If so, pdf-prev is handled
+            const pdfPrev = document.getElementById('pdf-prev');
+            if (pdfPrev) {
+                pdfPrev.click();
+            } else {
+                document.getElementById('preview-prev-btn')?.click();
+            }
+        } else if (e.key === 'ArrowRight') {
+            const pdfNext = document.getElementById('pdf-next');
+            if (pdfNext) {
+                pdfNext.click();
+            } else {
+                document.getElementById('preview-next-btn')?.click();
+            }
+        }
     });
 
-    // Handle PDF preview keyboard shortcuts
-    const pdfPageNum = document.getElementById('pdf-page-num');
-    if (pdfPageNum) {
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'ArrowLeft') {
-                document.getElementById('pdf-prev')?.click();
-            } else if (e.key === 'ArrowRight') {
-                document.getElementById('pdf-next')?.click();
+    // Zoom and pan logic for standalone image preview
+    const previewImage = document.getElementById('preview-image');
+    const zoomPanel = document.getElementById('preview-zoom-panel');
+    const imageViewer = document.querySelector('.image-viewer');
+
+    if (previewImage && zoomPanel && imageViewer) {
+        let zoomLevel = 1.0;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
+
+        const updateZoom = (animate = true) => {
+            if (zoomLevel <= 1.0) {
+                translateX = 0;
+                translateY = 0;
+                previewImage.style.cursor = 'default';
+            } else {
+                previewImage.style.cursor = isDragging ? 'grabbing' : 'grab';
+            }
+
+            previewImage.style.transition = animate ? 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
+            previewImage.style.transform = `scale(${zoomLevel}) translate(${translateX / zoomLevel}px, ${translateY / zoomLevel}px)`;
+
+            const zoomValEl = document.getElementById('zoom-value');
+            if (zoomValEl) {
+                zoomValEl.textContent = Math.round(zoomLevel * 100) + '%';
+            }
+        };
+
+        document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
+            zoomLevel = Math.min(zoomLevel + 0.25, 4.0);
+            updateZoom(true);
+        });
+
+        document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
+            zoomLevel = Math.max(zoomLevel - 0.25, 0.25);
+            updateZoom(true);
+        });
+
+        document.getElementById('btn-zoom-reset')?.addEventListener('click', () => {
+            zoomLevel = 1.0;
+            translateX = 0;
+            translateY = 0;
+            updateZoom(true);
+        });
+
+        imageViewer.addEventListener('mousedown', (e) => {
+            if (zoomLevel <= 1.0 || e.button !== 0) return;
+            isDragging = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            updateZoom(false);
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            updateZoom(false);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                updateZoom(false);
             }
         });
-    }
 
-    // Auto-fit for images
-    const previewImage = document.getElementById('preview-image');
-    if (previewImage) {
-        previewImage.addEventListener('load', function() {
-            // Image loaded successfully
-            console.log('Image preview loaded');
+        imageViewer.addEventListener('dblclick', (e) => {
+            if (e.target !== previewImage) return;
+            if (zoomLevel > 1.0) {
+                zoomLevel = 1.0;
+                translateX = 0;
+                translateY = 0;
+            } else {
+                zoomLevel = 2.0;
+                const rect = previewImage.getBoundingClientRect();
+                const offsetX = e.clientX - (rect.left + rect.width / 2);
+                const offsetY = e.clientY - (rect.top + rect.height / 2);
+                translateX = -offsetX;
+                translateY = -offsetY;
+            }
+            updateZoom(true);
         });
     }
 

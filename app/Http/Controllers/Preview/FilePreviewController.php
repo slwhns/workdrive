@@ -30,6 +30,7 @@ class FilePreviewController extends Controller
         }
 
         $previewData = $this->previewService->getPreviewData($fileModel);
+        [$prevFileId, $nextFileId] = $this->getSiblingFileIds($fileModel);
 
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
@@ -42,11 +43,18 @@ class FilePreviewController extends Controller
                     'mime_type' => $fileModel->mime_type,
                     'created_at' => $fileModel->created_at,
                     'updated_at' => $fileModel->updated_at,
-                ]
+                ],
+                'prev_id' => $prevFileId,
+                'next_id' => $nextFileId
             ]);
         }
 
-        return view('preview.show', ['file' => $fileModel, 'previewData' => $previewData]);
+        return view('preview.show', [
+            'file' => $fileModel, 
+            'previewData' => $previewData,
+            'prevFileId' => $prevFileId,
+            'nextFileId' => $nextFileId
+        ]);
     }
 
     /**
@@ -64,6 +72,7 @@ class FilePreviewController extends Controller
             }
 
             $previewData = $this->previewService->getPreviewData($fileModel);
+            [$prevFileId, $nextFileId] = $this->getSiblingFileIds($fileModel);
 
             return response()->json([
                 'status' => 'success',
@@ -76,7 +85,9 @@ class FilePreviewController extends Controller
                     'created_at' => $fileModel->created_at,
                     'updated_at' => $fileModel->updated_at,
                     'created_by' => $fileModel->creator->name ?? 'Unknown',
-                ]
+                ],
+                'prev_id' => $prevFileId,
+                'next_id' => $nextFileId
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -84,6 +95,34 @@ class FilePreviewController extends Controller
                 'message' => 'Failed to generate preview: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get prev and next file IDs
+     */
+    private function getSiblingFileIds(File $file): array
+    {
+        $siblings = File::where('parent_id', $file->parent_id)
+            ->where('is_folder', false)
+            ->where('created_by', $file->created_by)
+            ->orderBy('name')
+            ->pluck('id')
+            ->toArray();
+
+        $currentIndex = array_search($file->id, $siblings);
+        $prevId = null;
+        $nextId = null;
+
+        if ($currentIndex !== false) {
+            if ($currentIndex > 0) {
+                $prevId = $siblings[$currentIndex - 1];
+            }
+            if ($currentIndex < count($siblings) - 1) {
+                $nextId = $siblings[$currentIndex + 1];
+            }
+        }
+
+        return [$prevId, $nextId];
     }
 
     /**

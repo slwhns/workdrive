@@ -541,6 +541,31 @@ class DriveController extends Controller
     }
 
     /**
+     * View a file inline in the browser (specifically PDFs)
+     */
+    public function inline(Request $request, File $file)
+    {
+        $isOwner = $file->created_by === $request->user()->id;
+        $isShared = \App\Models\Share::where('file_id', $file->id)
+            ->where('shared_with', $request->user()->id)
+            ->exists();
+            
+        abort_unless($isOwner || $isShared, 403);
+        abort_if($file->is_folder, 400, 'Cannot view folders inline.');
+        
+        if (!Storage::disk('public')->exists($file->storage_path)) {
+            abort(404, 'File does not exist on storage.');
+        }
+        
+        $path = Storage::disk('public')->path($file->storage_path);
+        
+        return response()->file($path, [
+            'Content-Type' => $file->mime_type ?? 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($file->name) . '"'
+        ]);
+    }
+
+    /**
      * Share a file with another user
      */
     public function share(Request $request, File $file): JsonResponse

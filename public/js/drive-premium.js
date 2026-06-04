@@ -1507,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (mockDoc) {
                 mockDoc.classList.add('full-workspace');
                 mockDoc.innerHTML = `
-                    <iframe src="/drive/files/${file.id}/download" style="width: 100%; height: 100%; border: none; background: #1e1e1e;"></iframe>
+                    <iframe src="/drive/files/${file.id}/inline" style="width: 100%; height: 100%; border: none; background: #1e1e1e;"></iframe>
                 `;
             }
             if (loader) {
@@ -1565,6 +1565,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Expose functions to window
     window.launchEditor = launchEditor;
     window.launchPreview = launchPreview;
+    window.getCurrentPreviewFiles = function() {
+        return state.files;
+    };
 
     document.getElementById('btn-close-onlyoffice')?.addEventListener('click', () => {
         if (onlyOfficeEditor) onlyOfficeEditor.classList.remove('active');

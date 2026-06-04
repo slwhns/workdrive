@@ -34,6 +34,23 @@
             </div>
         </div>
 
+        <!-- Navigation Buttons -->
+        <button class="preview-nav-btn prev-btn" id="preview-prev-btn" style="display: none;" title="Previous File">
+            <i class="ri-arrow-left-s-line"></i>
+        </button>
+        <button class="preview-nav-btn next-btn" id="preview-next-btn" style="display: none;" title="Next File">
+            <i class="ri-arrow-right-s-line"></i>
+        </button>
+
+        <!-- Floating Zoom Panel -->
+        <div class="preview-zoom-panel" id="preview-zoom-panel" style="display: none;">
+            <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out"><i class="ri-zoom-out-line"></i></button>
+            <span class="zoom-value" id="zoom-value">100%</span>
+            <button class="zoom-btn" id="btn-zoom-in" title="Zoom In"><i class="ri-zoom-in-line"></i></button>
+            <div class="zoom-divider"></div>
+            <button class="zoom-btn" id="btn-zoom-reset" title="Reset Zoom"><i class="ri-aspect-ratio-line"></i></button>
+        </div>
+
         <!-- Modal footer with file info -->
         <div class="preview-modal-footer" id="preview-modal-footer">
             <span id="preview-file-info"></span>
@@ -69,6 +86,7 @@
         height: 100vh;
         max-width: 100vw;
         max-height: 100vh;
+        position: relative;
     }
 
     .preview-modal-header {
@@ -229,13 +247,30 @@
 <script>
     // Preview modal functions
     window.PreviewModal = {
+        currentFileId: null,
+        prevFileId: null,
+        nextFileId: null,
+        zoomLevel: 1.0,
+        translateX: 0,
+        translateY: 0,
+        isDragging: false,
+        startX: 0,
+        startY: 0,
+
         open: function(fileId) {
+            // Clean up and reset Zoom/Pan
+            this.resetZoom();
+
+            this.currentFileId = parseInt(fileId);
             const modal = document.getElementById('preview-modal');
             const body = document.getElementById('preview-modal-body');
             const title = document.getElementById('preview-modal-title');
             const centerHeader = document.getElementById('preview-modal-header-center');
 
             modal.style.display = 'flex';
+
+            // Show loading state initially
+            body.innerHTML = '<div class="preview-loading"><div class="spinner"></div><p>Loading preview...</p></div>';
 
             // Fetch preview data
             fetch('/api/preview/' + fileId + '?json=true')
@@ -286,13 +321,24 @@
                             '/drive/files/' + fileId + '/download';
                         document.getElementById('preview-modal-fullscreen').href = 
                             '/preview/' + fileId;
+
+                        // Calculate Sibling Navigation
+                        this.setupNavigation(data.prev_id, data.next_id);
+
+                        // Setup Zoom Controls if image
+                        this.setupZoomControls(preview.type);
+
                     } else {
                         body.innerHTML = '<div class="preview-error"><i class="ri-alert-line"></i><p>Failed to load preview</p><p>' + (data.message || 'Unknown error') + '</p></div>';
+                        this.setupNavigation(null, null);
+                        this.setupZoomControls('none');
                     }
                 })
                 .catch(error => {
                     console.error('Error loading preview:', error);
                     body.innerHTML = '<div class="preview-error"><i class="ri-alert-line"></i><p>Failed to load preview</p><p>' + error.message + '</p></div>';
+                    this.setupNavigation(null, null);
+                    this.setupZoomControls('none');
                 });
         },
 
@@ -301,6 +347,76 @@
             modal.style.display = 'none';
             document.getElementById('preview-modal-body').innerHTML = 
                 '<div class="preview-loading"><div class="spinner"></div><p>Loading preview...</p></div>';
+            this.resetZoom();
+        },
+
+        setupNavigation: function(apiPrevId, apiNextId) {
+            let prevId = apiPrevId;
+            let nextId = apiNextId;
+
+            // Attempt to get active file list from SPA
+            if (window.getCurrentPreviewFiles) {
+                const files = window.getCurrentPreviewFiles();
+                if (files && files.length > 0) {
+                    const currentIndex = files.findIndex(f => f.id === this.currentFileId);
+                    if (currentIndex !== -1) {
+                        prevId = currentIndex > 0 ? files[currentIndex - 1].id : null;
+                        nextId = currentIndex < files.length - 1 ? files[currentIndex + 1].id : null;
+                    }
+                }
+            }
+
+            this.prevFileId = prevId;
+            this.nextFileId = nextId;
+
+            const prevBtn = document.getElementById('preview-prev-btn');
+            const nextBtn = document.getElementById('preview-next-btn');
+
+            if (prevBtn) prevBtn.style.display = prevId ? 'flex' : 'none';
+            if (nextBtn) nextBtn.style.display = nextId ? 'flex' : 'none';
+        },
+
+        setupZoomControls: function(previewType) {
+            const zoomPanel = document.getElementById('preview-zoom-panel');
+            if (!zoomPanel) return;
+
+            if (previewType === 'image') {
+                zoomPanel.style.display = 'flex';
+                this.updateZoom(false);
+            } else {
+                zoomPanel.style.display = 'none';
+            }
+        },
+
+        updateZoom: function(animate = true) {
+            const body = document.getElementById('preview-modal-body');
+            const img = body.querySelector('img');
+            if (!img) return;
+
+            if (this.zoomLevel <= 1.0) {
+                this.translateX = 0;
+                this.translateY = 0;
+                img.style.cursor = 'default';
+            } else {
+                img.style.cursor = this.isDragging ? 'grabbing' : 'grab';
+            }
+
+            img.style.transition = animate ? 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
+            img.style.transform = `scale(${this.zoomLevel}) translate(${this.translateX / this.zoomLevel}px, ${this.translateY / this.zoomLevel}px)`;
+
+            const valEl = document.getElementById('zoom-value');
+            if (valEl) valEl.textContent = Math.round(this.zoomLevel * 100) + '%';
+        },
+
+        resetZoom: function() {
+            this.zoomLevel = 1.0;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.isDragging = false;
+            const valEl = document.getElementById('zoom-value');
+            if (valEl) valEl.textContent = '100%';
+            const zoomPanel = document.getElementById('preview-zoom-panel');
+            if (zoomPanel) zoomPanel.style.display = 'none';
         },
 
         renderPreview: function(preview, container) {
@@ -308,7 +424,7 @@
 
             switch (preview.type) {
                 case 'image':
-                    html = '<img src="' + preview.url + '" style="max-width: 90%; max-height: 85vh; object-fit: contain; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 4px;" />';
+                    html = '<img src="' + preview.url + '" class="preview-image" style="max-width: 90%; max-height: 85vh; object-fit: contain; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 4px;" />';
                     container.innerHTML = html;
                     break;
                 case 'text':
@@ -372,10 +488,11 @@
         return text.replace(/[&<>"']/g, m => map[m]);
     }
 
-    // Close modal button
+    // Close modal button and navigation/zoom events
     document.addEventListener('DOMContentLoaded', function() {
         const closeBtn = document.getElementById('btn-preview-modal-close');
         const modal = document.getElementById('preview-modal');
+        const modalBody = document.getElementById('preview-modal-body');
 
         if (closeBtn) {
             closeBtn.addEventListener('click', function(e) {
@@ -383,6 +500,84 @@
                 window.PreviewModal.close();
             });
         }
+
+        // Sibling navigation triggers
+        document.getElementById('preview-prev-btn')?.addEventListener('click', function() {
+            if (window.PreviewModal.prevFileId) {
+                window.PreviewModal.open(window.PreviewModal.prevFileId);
+            }
+        });
+
+        document.getElementById('preview-next-btn')?.addEventListener('click', function() {
+            if (window.PreviewModal.nextFileId) {
+                window.PreviewModal.open(window.PreviewModal.nextFileId);
+            }
+        });
+
+        // Zoom button triggers
+        document.getElementById('btn-zoom-in')?.addEventListener('click', function() {
+            window.PreviewModal.zoomLevel = Math.min(window.PreviewModal.zoomLevel + 0.25, 4.0);
+            window.PreviewModal.updateZoom(true);
+        });
+
+        document.getElementById('btn-zoom-out')?.addEventListener('click', function() {
+            window.PreviewModal.zoomLevel = Math.max(window.PreviewModal.zoomLevel - 0.25, 0.25);
+            window.PreviewModal.updateZoom(true);
+        });
+
+        document.getElementById('btn-zoom-reset')?.addEventListener('click', function() {
+            window.PreviewModal.zoomLevel = 1.0;
+            window.PreviewModal.translateX = 0;
+            window.PreviewModal.translateY = 0;
+            window.PreviewModal.updateZoom(true);
+        });
+
+        // Image drag and pan behaviors
+        modalBody?.addEventListener('mousedown', function(e) {
+            const img = modalBody.querySelector('img');
+            if (!img || window.PreviewModal.zoomLevel <= 1.0 || e.button !== 0) return;
+
+            window.PreviewModal.isDragging = true;
+            window.PreviewModal.startX = e.clientX - window.PreviewModal.translateX;
+            window.PreviewModal.startY = e.clientY - window.PreviewModal.translateY;
+            window.PreviewModal.updateZoom(false);
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!window.PreviewModal.isDragging) return;
+            window.PreviewModal.translateX = e.clientX - window.PreviewModal.startX;
+            window.PreviewModal.translateY = e.clientY - window.PreviewModal.startY;
+            window.PreviewModal.updateZoom(false);
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (window.PreviewModal.isDragging) {
+                window.PreviewModal.isDragging = false;
+                window.PreviewModal.updateZoom(false);
+            }
+        });
+
+        // Double-click to toggle zoom (1.0x <-> 2.0x)
+        modalBody?.addEventListener('dblclick', function(e) {
+            const img = modalBody.querySelector('img');
+            if (!img || e.target !== img) return;
+
+            if (window.PreviewModal.zoomLevel > 1.0) {
+                window.PreviewModal.zoomLevel = 1.0;
+                window.PreviewModal.translateX = 0;
+                window.PreviewModal.translateY = 0;
+            } else {
+                window.PreviewModal.zoomLevel = 2.0;
+                // Center the zoom on the double click location
+                const rect = img.getBoundingClientRect();
+                const offsetX = e.clientX - (rect.left + rect.width / 2);
+                const offsetY = e.clientY - (rect.top + rect.height / 2);
+                window.PreviewModal.translateX = -offsetX;
+                window.PreviewModal.translateY = -offsetY;
+            }
+            window.PreviewModal.updateZoom(true);
+        });
 
         // Close on overlay click (but not modal content click)
         if (modal) {
@@ -393,10 +588,24 @@
             });
         }
 
-        // Keyboard close
+        // Keyboard navigation and escape close
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
-                window.PreviewModal.close();
+            if (modal && modal.style.display !== 'none') {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.key === 'Escape') {
+                    window.PreviewModal.close();
+                } else if (e.key === 'ArrowLeft') {
+                    const prevBtn = document.getElementById('preview-prev-btn');
+                    if (prevBtn && prevBtn.style.display !== 'none') {
+                        prevBtn.click();
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    const nextBtn = document.getElementById('preview-next-btn');
+                    if (nextBtn && nextBtn.style.display !== 'none') {
+                        nextBtn.click();
+                    }
+                }
             }
         });
     });

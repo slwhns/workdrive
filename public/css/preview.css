@@ -636,3 +636,132 @@
     background: #111111 !important;
 }
 
+/* Preview Navigation Overlay Buttons */
+.preview-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(30, 30, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-size: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1010;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+}
+
+.preview-nav-btn:hover {
+    background: rgba(30, 30, 30, 0.9);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%) scale(1.08);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    color: #ffffff;
+}
+
+.preview-nav-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.preview-nav-btn.prev-btn {
+    left: 24px;
+}
+
+.preview-nav-btn.next-btn {
+    right: 24px;
+}
+
+/* Zoom Floating Panel at Center Bottom */
+.preview-zoom-panel {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 30, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 30px;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 1010;
+    transition: all 0.3s ease;
+}
+
+.preview-zoom-panel .zoom-btn {
+    background: none;
+    border: none;
+    color: #ffffff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.preview-zoom-panel .zoom-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.preview-zoom-panel .zoom-btn:active {
+    transform: scale(0.9);
+}
+
+.preview-zoom-panel .zoom-value {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 48px;
+    text-align: center;
+    font-family: monospace;
+    user-select: none;
+}
+
+.preview-zoom-panel .zoom-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 4px;
+}
+
+/* Image grab cursor and disable default selection/dragging during zoom */
+.preview-image {
+    user-select: none;
+    -webkit-user-drag: none;
+    transform-origin: center center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .preview-nav-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+    .preview-nav-btn.prev-btn {
+        left: 12px;
+    }
+    .preview-nav-btn.next-btn {
+        right: 12px;
+    }
+    .preview-zoom-panel {
+        bottom: 16px;
+        padding: 4px 12px;
+    }
+}
+
+
