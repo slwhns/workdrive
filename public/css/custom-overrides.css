@@ -2538,3 +2538,132 @@ body:not(.light-theme) .supplier-page #supplier-items-pagination button:hover:no
     border: 0;
     border-top: 1px solid var(--grey-dark);
 }
+
+/* Fixed Layout Sidebar/Header and Content Scroll Overrides */
+body {
+    overflow: hidden !important;
+    height: 100vh !important;
+    margin: 0 !important;
+}
+
+.app-shell {
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+.app-sidebar {
+    height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    flex-shrink: 0 !important;
+}
+
+.app-content {
+    height: 100vh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex-grow: 1 !important;
+    position: relative;
+}
+
+.app-header {
+    flex-shrink: 0 !important;
+}
+
+.app-main {
+    flex-grow: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+
+/* See More Button Styling */
+.see-more-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+    margin-bottom: 25px;
+    width: 100%;
+}
+
+.see-more-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--white2);
+    padding: 8px 22px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.see-more-btn:hover {
+    background: rgba(255, 91, 4, 0.1);
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
+    box-shadow: 0 4px 15px rgba(255, 91, 4, 0.25);
+    transform: translateY(-1px);
+}
+
+.see-more-btn:active {
+    transform: translateY(1px);
+}
+
+.see-more-btn i {
+    font-size: 16px;
+    transition: transform 0.2s ease;
+}
+
+.see-more-btn:hover i {
+    transform: translateY(2px);
+}
+
+body.light-theme .see-more-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #444;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .see-more-btn:hover {
+    background: rgba(245, 75, 13, 0.08);
+    border-color: #f54b0d;
+    color: #f54b0d;
+    box-shadow: 0 4px 15px rgba(245, 75, 13, 0.15);
+}
+
+/* Ensure folders inside list view maintain their grid card design */
+.drive-grid.list-view .drive-card.folder-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: 6px 10px !important;
+    border-radius: 8px !important;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    margin-bottom: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.drive-grid.list-view .drive-card.folder-card:hover {
+    transform: translateY(-2px) !important;
+    border-color: var(--accent-orange-glow) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.light-theme .drive-grid.list-view .drive-card.folder-card:hover {
+    background: rgba(0, 0, 0, 0.04) !important;
+}

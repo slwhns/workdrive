@@ -19,7 +19,13 @@ document.addEventListener('DOMContentLoaded', function () {
         currentFolder: null,
         storageUsed: 0,            // Total storage used in bytes
         storageQuota: 5368709120,  // 5 GB Quota
-        docEditor: null            // OnlyOffice editor instance
+        docEditor: null,           // OnlyOffice editor instance
+        foldersLimit: 6,
+        filesLimit: 6,
+        showAllFolders: false,
+        showAllFiles: false,
+        listLimit: 10,
+        showAllList: false
     };
 
     // Grab CSRF token
@@ -111,6 +117,18 @@ document.addEventListener('DOMContentLoaded', function () {
         state.currentFolderId = folderId;
         state.searchQuery = query;
         state.selectedItem = null; // Reset selection on navigate
+        state.showAllFolders = false;
+        state.showAllFiles = false;
+        state.showAllList = false;
+
+        // Update document title dynamically
+        let pageTitle = 'My Drive';
+        if (tab === 'shared') pageTitle = 'Shared with me';
+        else if (tab === 'recents') pageTitle = 'Recents';
+        else if (tab === 'starred') pageTitle = 'Starred';
+        else if (tab === 'trash') pageTitle = 'Trash';
+        else if (tab === 'search') pageTitle = 'Search Results';
+        document.title = `WD | ${pageTitle}`;
 
         // Build browser URL
         let url = '/';
@@ -311,28 +329,27 @@ document.addEventListener('DOMContentLoaded', function () {
         if (state.currentTab !== 'index') {
             container.innerHTML = `
                 <div class="breadcrumbs">
-                    <a href="#" data-spa-tab="index">WorkDrive</a>
+                    <a href="#" data-spa-tab="index" data-spa-folder="null">My Drive</a>
                     <span class="divider">/</span>
                     <span class="active">${state.currentTab.toUpperCase()}</span>
                 </div>
             `;
-            return;
+        } else {
+            let bcHtml = `<div class="breadcrumbs">`;
+            bcHtml += `<a href="#" data-spa-tab="index" data-spa-folder="null">My Drive</a>`;
+
+            state.breadcrumbs.forEach((node, index) => {
+                bcHtml += `<span class="divider">/</span>`;
+                if (index === state.breadcrumbs.length - 1) {
+                    bcHtml += `<span class="active">${escapeHtml(node.name)}</span>`;
+                } else {
+                    bcHtml += `<a href="#" data-spa-tab="index" data-spa-folder="${node.id}">${escapeHtml(node.name)}</a>`;
+                }
+            });
+
+            bcHtml += `</div>`;
+            container.innerHTML = bcHtml;
         }
-
-        let bcHtml = `<div class="breadcrumbs">`;
-        bcHtml += `<a href="#" data-spa-tab="index" data-spa-folder="null">My Drive</a>`;
-
-        state.breadcrumbs.forEach((node, index) => {
-            bcHtml += `<span class="divider">/</span>`;
-            if (index === state.breadcrumbs.length - 1) {
-                bcHtml += `<span class="active">${escapeHtml(node.name)}</span>`;
-            } else {
-                bcHtml += `<a href="#" data-spa-tab="index" data-spa-folder="${node.id}">${escapeHtml(node.name)}</a>`;
-            }
-        });
-
-        bcHtml += `</div>`;
-        container.innerHTML = bcHtml;
 
         // Bind clicks
         container.querySelectorAll('a').forEach(link => {
@@ -382,26 +399,76 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let html = '';
 
-        // If list view, draw table column headers
+        // If list view, draw folders as grid and files as list
         if (state.viewMode === 'list') {
-            html += `
-                <div class="drive-list-header" role="rowgroup">
-                    <div class="col-name">Name</div>
-                    <div class="col-modified">Last modified</div>
-                    <div class="col-size">Size</div>
-                    <div class="col-actions" aria-hidden="true"></div>
-                </div>
-            `;
-            
-            // Draw Folders
-            state.folders.forEach(folder => {
-                html += generateItemCardHtml(folder, true);
-            });
+            // 1. Draw Folders (Grid style)
+            if (state.folders.length > 0) {
+                html += `
+                    <div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10">Folders</div>
+                    <div class="folders-grid">
+                `;
+                
+                let foldersToRender = state.folders;
+                let showSeeMoreFolders = false;
+                if (state.folders.length > state.foldersLimit && !state.showAllFolders) {
+                    foldersToRender = state.folders.slice(0, state.foldersLimit);
+                    showSeeMoreFolders = true;
+                }
 
-            // Draw Files
-            state.files.forEach(file => {
-                html += generateItemCardHtml(file, false);
-            });
+                foldersToRender.forEach(folder => {
+                    html += generateItemCardHtml(folder, true, true); // force grid view
+                });
+                html += `</div>`;
+
+                if (showSeeMoreFolders) {
+                    html += `
+                        <div class="see-more-container">
+                            <button class="see-more-btn" id="see-more-folders">
+                                <span>See more</span>
+                                <i class="ri-arrow-down-s-line"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+
+            // 2. Draw Files (List style)
+            if (state.files.length > 0) {
+                if (state.folders.length > 0) {
+                    html += `<div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10">Files</div>`;
+                }
+
+                html += `
+                    <div class="drive-list-header" role="rowgroup">
+                        <div class="col-name">Name</div>
+                        <div class="col-modified">Last modified</div>
+                        <div class="col-size">Size</div>
+                        <div class="col-actions" aria-hidden="true"></div>
+                    </div>
+                `;
+
+                let filesToRender = state.files;
+                let showSeeMoreFiles = false;
+                if (state.files.length > state.filesLimit && !state.showAllFiles) {
+                    filesToRender = state.files.slice(0, state.filesLimit);
+                    showSeeMoreFiles = true;
+                }
+
+                filesToRender.forEach(file => {
+                    html += generateItemCardHtml(file, false); // list view style
+                });
+
+                if (showSeeMoreFiles) {
+                    html += `
+                        <div class="see-more-container">
+                            <button class="see-more-btn" id="see-more-files">
+                                <span>See more</span>
+                                <i class="ri-arrow-down-s-line"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+            }
             
             grid.innerHTML = html;
         } else {
@@ -413,10 +480,29 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10" style="grid-column: 1 / -1;">Folders</div>
                     <div class="folders-grid">
                 `;
-                state.folders.forEach(folder => {
+                
+                let foldersToRender = state.folders;
+                let showSeeMoreFolders = false;
+                if (state.folders.length > state.foldersLimit && !state.showAllFolders) {
+                    foldersToRender = state.folders.slice(0, state.foldersLimit);
+                    showSeeMoreFolders = true;
+                }
+
+                foldersToRender.forEach(folder => {
                     gridHtml += generateItemCardHtml(folder, true);
                 });
                 gridHtml += `</div>`;
+
+                if (showSeeMoreFolders) {
+                    gridHtml += `
+                        <div class="see-more-container">
+                            <button class="see-more-btn" id="see-more-folders">
+                                <span>See more</span>
+                                <i class="ri-arrow-down-s-line"></i>
+                            </button>
+                        </div>
+                    `;
+                }
             }
 
             if (state.files.length > 0) {
@@ -424,17 +510,36 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="grid-section-title w-100 clr-white fw-700 fs-14 mg-t-10 mg-b-10" style="grid-column: 1 / -1;">Files</div>
                     <div class="files-grid">
                 `;
-                state.files.forEach(file => {
+                
+                let filesToRender = state.files;
+                let showSeeMoreFiles = false;
+                if (state.files.length > state.filesLimit && !state.showAllFiles) {
+                    filesToRender = state.files.slice(0, state.filesLimit);
+                    showSeeMoreFiles = true;
+                }
+
+                filesToRender.forEach(file => {
                     gridHtml += generateItemCardHtml(file, false);
                 });
                 gridHtml += `</div>`;
+
+                if (showSeeMoreFiles) {
+                    gridHtml += `
+                        <div class="see-more-container">
+                            <button class="see-more-btn" id="see-more-files">
+                                <span>See more</span>
+                                <i class="ri-arrow-down-s-line"></i>
+                            </button>
+                        </div>
+                    `;
+                }
             }
 
             grid.innerHTML = gridHtml;
         }
     }
 
-    function generateItemCardHtml(item, isFolder) {
+    function generateItemCardHtml(item, isFolder, forceGridView = false) {
         const isSelected = state.selectedItem && state.selectedItem.id === item.id && state.selectedItem.is_folder === isFolder;
         const selectedClass = isSelected ? 'selected' : '';
         const starClass = item.is_starred ? 'active' : '';
@@ -445,7 +550,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formattedDate = formatDate(item.updated_at || item.created_at);
         const formattedSize = isFolder ? '--' : formatBytes(item.size);
 
-        if (state.viewMode === 'list') {
+        if (state.viewMode === 'list' && !forceGridView) {
             return `
                 <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" data-file-id="${item.id}" data-is-folder="${isFolder}">
                     <div class="drive-card-top">
@@ -722,6 +827,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function bindNewViewEvents() {
+        // Close context menu when main scroll container is scrolled
+        document.querySelector('.drive-main-panel')?.addEventListener('scroll', closeContextMenu, { passive: true });
+
         // Toggle view buttons
         document.getElementById('view-toggle-list')?.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -740,6 +848,25 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('btn-refresh-spa')?.addEventListener('click', function(e) {
             e.stopPropagation();
             loadCurrentView();
+        });
+
+        // See more buttons click handlers
+        document.getElementById('see-more-folders')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            state.showAllFolders = true;
+            renderSPAView();
+        });
+
+        document.getElementById('see-more-files')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            state.showAllFiles = true;
+            renderSPAView();
+        });
+
+        document.getElementById('see-more-list')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            state.showAllList = true;
+            renderSPAView();
         });
 
         // Search Input listeners
@@ -801,8 +928,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     navigateSPA(state.currentTab, itemId);
                 } else {
-                    // Open OnlyOffice editor in edit mode
-                    launchEditor(itemId);
+                    const file = state.files.find(f => f.id === parseInt(itemId));
+                    const ext = file ? file.name.split('.').pop().toLowerCase() : '';
+                    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+                        launchPreview(itemId);
+                    } else {
+                        // Open OnlyOffice editor in edit mode
+                        launchEditor(itemId);
+                    }
                 }
             });
 
@@ -945,7 +1078,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         contextMenu.innerHTML = menuHtml;
 
-        // Position context menu
+        // Position context menu using viewport coordinates (fixed positioning)
         contextMenu.style.left = `${x}px`;
         contextMenu.style.top = `${y}px`;
         contextMenu.classList.add('active');
@@ -1521,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 mockDoc.classList.add('full-workspace');
                 mockDoc.innerHTML = `
                     <div class="d-flex ai-center jc-center" style="width: 100%; height: 100%; padding: 20px; background: rgba(0,0,0,0.85); box-sizing: border-box;">
-                        <img src="/drive/files/${file.id}/download" alt="${escapeHtml(file.name)}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                        <img src="/drive/files/${file.id}/inline" alt="${escapeHtml(file.name)}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
                     </div>
                 `;
             }
@@ -1859,6 +1992,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.querySelector('.app-new-wrap')?.classList.remove('is-open');
             }
         });
+
+        // Close context menu when any container is scrolled (using capture phase on window)
+        window.addEventListener('scroll', closeContextMenu, true);
 
         // Intercept close events on modal backdrops
         document.querySelectorAll('.premium-modal').forEach(modal => {

@@ -125,12 +125,12 @@ class FilePreviewService
      */
     private function getImagePreview(File $file): array
     {
-        $downloadUrl = route('drive.files.download', ['file' => $file->id]);
+        $inlineUrl = route('drive.files.inline', ['file' => $file->id]);
 
         return [
             'type' => 'image',
             'filename' => $file->name,
-            'url' => $downloadUrl,
+            'url' => $inlineUrl,
             'size' => $this->formatFileSize($file->size),
             'created_at' => $file->created_at->format('M d, Y'),
             'updated_at' => $file->updated_at->format('M d, Y H:i'),
@@ -235,12 +235,12 @@ class FilePreviewService
      */
     private function getVideoPreview(File $file): array
     {
-        $downloadUrl = route('drive.files.download', ['file' => $file->id]);
+        $inlineUrl = route('drive.files.inline', ['file' => $file->id]);
 
         return [
             'type' => 'video',
             'filename' => $file->name,
-            'url' => $downloadUrl,
+            'url' => $inlineUrl,
             'size' => $this->formatFileSize($file->size),
             'created_at' => $file->created_at->format('M d, Y'),
             'updated_at' => $file->updated_at->format('M d, Y H:i'),
@@ -254,12 +254,12 @@ class FilePreviewService
      */
     private function getAudioPreview(File $file): array
     {
-        $downloadUrl = route('drive.files.download', ['file' => $file->id]);
+        $inlineUrl = route('drive.files.inline', ['file' => $file->id]);
 
         return [
             'type' => 'audio',
             'filename' => $file->name,
-            'url' => $downloadUrl,
+            'url' => $inlineUrl,
             'size' => $this->formatFileSize($file->size),
             'created_at' => $file->created_at->format('M d, Y'),
             'updated_at' => $file->updated_at->format('M d, Y H:i'),
