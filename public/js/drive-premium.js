@@ -20,8 +20,8 @@ document.addEventListener('DOMContentLoaded', function () {
         storageUsed: 0,            // Total storage used in bytes
         storageQuota: 5368709120,  // 5 GB Quota
         docEditor: null,           // OnlyOffice editor instance
-        foldersLimit: 6,
-        filesLimit: 6,
+        foldersLimit: 5,
+        filesLimit: 10,
         showAllFolders: false,
         showAllFiles: false,
         listLimit: 10,
