@@ -1523,3 +1523,43 @@ body.light-theme .file-card-footer .file-card-meta {
         margin-bottom: 0;
     }
 }
+
+/* Move Modal Styles */
+.move-modal-navigation {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+body.light-theme .move-modal-navigation {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.move-folder-li {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+body.light-theme .move-folder-li {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.move-folder-li:hover {
+    background: rgba(255, 91, 4, 0.08) !important;
+    border-color: rgba(255, 91, 4, 0.2);
+}
+
+.move-folder-li.active {
+    background: rgba(255, 91, 4, 0.15) !important;
+    border-color: var(--accent-orange) !important;
+}
+
+body.light-theme .move-folder-li span {
+    color: #333 !important;
+}

@@ -38,6 +38,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/drive/files/{file}/thumbnail', [OnlyOfficeController::class, 'thumbnail'])->name('drive.files.thumbnail');
     
     // SPA File Operations
+    Route::get('/drive/folders-list', [DriveController::class, 'allFolders'])->name('drive.folders.all');
+    Route::post('/drive/files/{file}/move', [DriveController::class, 'move'])->name('drive.files.move');
     Route::post('/drive/files/{file}/star', [DriveController::class, 'toggleStar'])->name('drive.files.star');
     Route::post('/drive/files/{file}/rename', [DriveController::class, 'rename'])->name('drive.files.rename');
     Route::delete('/drive/files/{file}', [DriveController::class, 'destroy'])->name('drive.files.destroy');

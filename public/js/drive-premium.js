@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const contextMenu = document.getElementById('context-menu');
     const renameModal = document.getElementById('rename-modal');
     const shareModal = document.getElementById('share-modal');
+    const moveModal = document.getElementById('move-modal');
     const onlyOfficeEditor = document.getElementById('onlyoffice-editor');
     const dragOverlay = document.getElementById('drag-overlay');
     const toastContainer = document.getElementById('toast-container');
@@ -1064,6 +1065,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="button" class="context-menu-item" id="ctx-rename">
                     <i class="ri-edit-line"></i> <span>Rename</span>
                 </button>
+                <button type="button" class="context-menu-item" id="ctx-move">
+                    <i class="ri-folder-transfer-line"></i> <span>Move to...</span>
+                </button>
                 ${!isFolder ? `
                     <button type="button" class="context-menu-item" id="ctx-download">
                         <i class="ri-download-line"></i> <span>Download</span>
@@ -1111,6 +1115,11 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ctx-rename')?.addEventListener('click', () => {
             closeContextMenu();
             openRenameModal();
+        });
+
+        document.getElementById('ctx-move')?.addEventListener('click', () => {
+            closeContextMenu();
+            openMoveModal();
         });
 
         document.getElementById('ctx-download')?.addEventListener('click', () => {
@@ -1204,8 +1213,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         ${!isFolder ? `
                             <button class="btn btn-primary" id="drawer-btn-preview"><i class="ri-eye-line"></i> Preview</button>
                             <button class="btn btn-secondary" id="drawer-btn-download"><i class="ri-download-line"></i> Get File</button>
+                            <button class="btn btn-outline" id="drawer-btn-move" style="grid-column: 1 / -1; margin-top: 5px;"><i class="ri-folder-transfer-line"></i> Move Item</button>
                         ` : `
                             <button class="btn btn-primary" id="drawer-btn-open" style="grid-column: 1 / -1;"><i class="ri-folder-open-line"></i> Open Folder</button>
+                            <button class="btn btn-outline" id="drawer-btn-move" style="grid-column: 1 / -1; margin-top: 5px;"><i class="ri-folder-transfer-line"></i> Move Folder</button>
                         `}
                     `}
                 </div>
@@ -1240,6 +1251,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('drawer-btn-force-delete')?.addEventListener('click', () => {
             executeForceDelete(item.id);
+        });
+
+        document.getElementById('drawer-btn-move')?.addEventListener('click', () => {
+            openMoveModal();
         });
     }
 
@@ -1517,6 +1532,266 @@ document.addEventListener('DOMContentLoaded', function () {
         const permission = this.querySelector('#share-permission-select').value;
         if (email) {
             executeShare(email, permission);
+        }
+    });
+
+    let moveModalFolders = [];
+    let moveCurrentFolderId = null;
+
+    function openMoveModal() {
+        if (!state.selectedItem) return;
+
+        // Reset navigation to root (My Drive)
+        moveCurrentFolderId = null;
+
+        // Hide inline new folder input wrap if open
+        const wrap = document.getElementById('move-new-folder-input-wrap');
+        if (wrap) wrap.style.display = 'none';
+
+        // Fetch folders list from server
+        fetch('/drive/folders-list', {
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                moveModalFolders = data.folders;
+                renderMoveFolderList();
+                openModal(moveModal);
+            } else {
+                showToast('Error loading folders list.', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('Error loading folders list.', 'error');
+        });
+    }
+
+    function renderMoveFolderList() {
+        const listContainer = document.getElementById('move-folder-list');
+        const backBtn = document.getElementById('move-btn-back');
+        const locationSpan = document.getElementById('move-current-location');
+        const confirmBtn = document.getElementById('btn-confirm-move');
+
+        if (!listContainer || !state.selectedItem) return;
+
+        // Update Location Name
+        if (moveCurrentFolderId === null) {
+            locationSpan.textContent = 'My Drive (Root)';
+            backBtn.disabled = true;
+        } else {
+            const currentFolder = moveModalFolders.find(f => f.id === moveCurrentFolderId);
+            locationSpan.textContent = currentFolder ? currentFolder.name : 'Folder';
+            backBtn.disabled = false;
+        }
+
+        // Exclude the selected item (if it is a folder) and all its descendants to avoid cycles
+        const forbiddenIds = [];
+        if (state.selectedItem.is_folder) {
+            forbiddenIds.push(state.selectedItem.id);
+            forbiddenIds.push(...getDescendantFolderIds(state.selectedItem.id));
+        }
+
+        // Get folders in current navigated level
+        const levelFolders = moveModalFolders.filter(f => {
+            return f.parent_id === moveCurrentFolderId && !forbiddenIds.includes(f.id);
+        });
+
+        // Check if the item's current folder is this navigated folder
+        const isCurrentParent = state.selectedItem.parent_id === moveCurrentFolderId;
+
+        // Update Confirm Button Label and state
+        if (isCurrentParent) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Already here';
+            confirmBtn.style.opacity = '0.6';
+            confirmBtn.style.pointerEvents = 'none';
+        } else {
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+            confirmBtn.textContent = moveCurrentFolderId === null ? 'Move to My Drive' : `Move Here`;
+        }
+
+        if (levelFolders.length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-center pd-20 clr-grey2 fs-13" style="padding: 20px 10px;">
+                    <i class="ri-folder-open-line fs-20 mg-b-5 d-block clr-plt1"></i>
+                    No subfolders in this directory
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<ul class="move-folders-ul" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;">';
+        levelFolders.forEach(folder => {
+            html += `
+                <li class="move-folder-li" data-id="${folder.id}" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: background 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-grow: 1;">
+                        <i class="ri-folder-fill clr-plt1 fs-18"></i>
+                        <span class="clr-white fs-13" style="font-weight: 500;">${escapeHtml(folder.name)}</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-xs btn-open-subfolder" data-id="${folder.id}" style="padding: 2px 6px; font-size: 11px; border-radius: 4px;">
+                        Open <i class="ri-arrow-right-s-line"></i>
+                    </button>
+                </li>
+            `;
+        });
+        html += '</ul>';
+        listContainer.innerHTML = html;
+
+        // Bind clicks on list items to select a folder row (for potential selection, though move here uses navigated level)
+        listContainer.querySelectorAll('.move-folder-li').forEach(li => {
+            li.addEventListener('click', function(e) {
+                // Remove selected styling from others
+                listContainer.querySelectorAll('.move-folder-li').forEach(el => el.classList.remove('active'));
+                
+                // Select this one
+                this.classList.add('active');
+            });
+        });
+
+        // Bind clicks on "Open" buttons to navigate down
+        listContainer.querySelectorAll('.btn-open-subfolder').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Avoid selecting the row
+                const id = parseInt(this.getAttribute('data-id'));
+                moveCurrentFolderId = id;
+                renderMoveFolderList();
+            });
+        });
+    }
+
+    function getDescendantFolderIds(folderId) {
+        const ids = [];
+        const children = moveModalFolders.filter(f => f.parent_id === folderId);
+        for (const child of children) {
+            ids.push(child.id);
+            ids.push(...getDescendantFolderIds(child.id));
+        }
+        return ids;
+    }
+
+    function executeMove(targetFolderId) {
+        if (!state.selectedItem) return;
+        const id = state.selectedItem.id;
+
+        fetch(`/drive/files/${id}/move`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ parent_id: targetFolderId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                closeModal(moveModal);
+                loadCurrentView(false); // Reload current view
+            } else {
+                showToast(data.message || 'Error moving item.', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('Error moving item.', 'error');
+        });
+    }
+
+    // Bind Move Modal Controls
+    document.getElementById('move-btn-back')?.addEventListener('click', function() {
+        if (moveCurrentFolderId === null) return;
+        const currentFolder = moveModalFolders.find(f => f.id === moveCurrentFolderId);
+        moveCurrentFolderId = currentFolder ? currentFolder.parent_id : null;
+        renderMoveFolderList();
+    });
+
+    document.getElementById('btn-close-move')?.addEventListener('click', () => closeModal(moveModal));
+
+    document.getElementById('btn-confirm-move')?.addEventListener('click', function() {
+        executeMove(moveCurrentFolderId);
+    });
+
+    // Show/hide inline new folder field
+    document.getElementById('move-btn-new-folder')?.addEventListener('click', function() {
+        const wrap = document.getElementById('move-new-folder-input-wrap');
+        const input = document.getElementById('move-new-folder-name');
+        if (wrap && input) {
+            wrap.style.display = 'flex';
+            input.value = '';
+            input.focus();
+        }
+    });
+
+    document.getElementById('move-btn-new-folder-cancel')?.addEventListener('click', function() {
+        const wrap = document.getElementById('move-new-folder-input-wrap');
+        if (wrap) {
+            wrap.style.display = 'none';
+        }
+    });
+
+    function submitInlineFolder() {
+        const wrap = document.getElementById('move-new-folder-input-wrap');
+        const input = document.getElementById('move-new-folder-name');
+        if (!input) return;
+
+        const folderName = input.value.trim();
+        if (!folderName) {
+            showToast('Folder name cannot be empty.', 'warning');
+            return;
+        }
+
+        fetch('/folders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                name: folderName,
+                parent_id: moveCurrentFolderId
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                if (wrap) wrap.style.display = 'none';
+                
+                // Add the newly created folder to our list
+                moveModalFolders.push(data.folder);
+                
+                // Re-render folder list
+                renderMoveFolderList();
+                
+                // Keep background view in sync
+                loadCurrentView(false);
+            } else {
+                showToast(data.message || 'Error creating folder.', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('Error creating folder.', 'error');
+        });
+    }
+
+    document.getElementById('move-btn-new-folder-save')?.addEventListener('click', submitInlineFolder);
+
+    document.getElementById('move-new-folder-name')?.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitInlineFolder();
+        } else if (e.key === 'Escape') {
+            const wrap = document.getElementById('move-new-folder-input-wrap');
+            if (wrap) wrap.style.display = 'none';
         }
     });
 
@@ -1923,6 +2198,54 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             `;
             document.body.appendChild(share);
+        }
+
+        // Create Move Modal
+        if (!document.getElementById('move-modal')) {
+            const move = document.createElement('div');
+            move.id = 'move-modal';
+            move.className = 'premium-modal';
+            move.innerHTML = `
+                <div class="premium-modal-backdrop"></div>
+                <div class="premium-modal-dialog">
+                    <div class="premium-modal-header">
+                        <span class="premium-modal-title"><i class="ri-folder-transfer-line clr-plt1"></i> Move Item</span>
+                        <button type="button" class="btn-close-drawer" onclick="this.closest('.premium-modal').classList.remove('active')"><i class="ri-close-line"></i></button>
+                    </div>
+                    <div class="premium-modal-body">
+                        <div class="move-modal-navigation" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <div style="display: flex; align-items: center;">
+                                <button type="button" class="btn btn-outline btn-xs" id="move-btn-back" disabled style="padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="ri-arrow-left-line"></i> Back
+                                </button>
+                                <span id="move-current-location" class="fw-600 clr-white" style="margin-left:12px; font-size:14px;">My Drive</span>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-xs" id="move-btn-new-folder" style="padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; border-color: var(--accent-orange); color: var(--accent-orange);">
+                                <i class="ri-folder-add-line"></i> New Folder
+                            </button>
+                        </div>
+                        
+                        <!-- Inline new folder input wrap -->
+                        <div id="move-new-folder-input-wrap" style="display: none; margin-top: 12px; align-items: center; gap: 8px; padding: 6px; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,91,4,0.3); border-radius: 6px;">
+                            <i class="ri-folder-add-fill clr-plt1" style="font-size: 18px;"></i>
+                            <input type="text" id="move-new-folder-name" placeholder="New folder name..." class="form-control" style="flex-grow: 1; padding: 4px 8px; font-size: 13px; height: auto;" autocomplete="off">
+                            <button type="button" class="btn btn-primary btn-xs" id="move-btn-new-folder-save" style="padding: 4px 8px;"><i class="ri-check-line"></i></button>
+                            <button type="button" class="btn btn-outline btn-xs" id="move-btn-new-folder-cancel" style="padding: 4px 8px;"><i class="ri-close-line"></i></button>
+                        </div>
+                        
+                        <div class="move-folder-list-container" style="max-height: 250px; min-height: 120px; overflow-y: auto; margin-top: 15px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 6px; background: rgba(0,0,0,0.2);">
+                            <div id="move-folder-list">
+                                <!-- Folders loaded dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="premium-modal-footer">
+                        <button type="button" class="btn btn-outline" id="btn-close-move">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="btn-confirm-move">Move Here</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(move);
         }
 
         // Create OnlyOffice Preview Modal
