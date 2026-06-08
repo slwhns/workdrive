@@ -30,6 +30,7 @@ class DriveController extends Controller
                 ->first();
                 
             if ($currentFolder) {
+                $currentFolder->update(['accessed_at' => now()]);
                 // Access check: must be owner OR shared in shares table, or inside a shared folder
                 $isOwner = $currentFolder->created_by === $user->id;
                 $isShared = \App\Models\Share::where('file_id', $parentId)
@@ -122,6 +123,8 @@ class DriveController extends Controller
     {
         $user = $request->user();
         
+        $this->purgeExpiredTrash($user->id);
+        
         $files = File::onlyTrashed()
             ->where('created_by', $user->id)
             ->where('is_folder', false)
@@ -178,22 +181,19 @@ class DriveController extends Controller
         return view('drive.search', compact('folders', 'files', 'query'));
     }
 
-    /**
-     * Show recently modified or accessed files
-     */
     public function recents(Request $request)
     {
         $user = $request->user();
         
         $files = File::where('created_by', $user->id)
             ->where('is_folder', false)
-            ->orderBy('updated_at', 'desc')
+            ->orderBy('accessed_at', 'desc')
             ->limit(20)
             ->get();
             
         $folders = File::where('created_by', $user->id)
             ->where('is_folder', true)
-            ->orderBy('updated_at', 'desc')
+            ->orderBy('accessed_at', 'desc')
             ->limit(10)
             ->get();
             
@@ -530,11 +530,7 @@ class DriveController extends Controller
         $file = File::withTrashed()->findOrFail($id);
         abort_unless($file->created_by === $request->user()->id, 403);
         
-        if (!$file->is_folder && $file->storage_path) {
-            Storage::disk('public')->delete($file->storage_path);
-        }
-        
-        $file->forceDelete();
+        $this->forceDeleteRecursive($file);
         
         return response()->json([
             'status' => 'success',
@@ -559,6 +555,8 @@ class DriveController extends Controller
             abort(404, 'File does not exist on storage.');
         }
         
+        $file->update(['accessed_at' => now()]);
+        
         return Storage::disk('public')->download($file->storage_path, $file->name);
     }
 
@@ -578,6 +576,8 @@ class DriveController extends Controller
         if (!Storage::disk('public')->exists($file->storage_path)) {
             abort(404, 'File does not exist on storage.');
         }
+        
+        $file->update(['accessed_at' => now()]);
         
         $path = Storage::disk('public')->path($file->storage_path);
         
@@ -731,5 +731,38 @@ class DriveController extends Controller
         }
         
         return $name;
+    }
+
+    /**
+     * Purge soft-deleted items older than 40 days
+     */
+    protected function purgeExpiredTrash($userId = null)
+    {
+        $query = File::onlyTrashed()->where('deleted_at', '<=', now()->subDays(40));
+        if ($userId) {
+            $query->where('created_by', $userId);
+        }
+        $expiredItems = $query->get();
+        foreach ($expiredItems as $item) {
+            $this->forceDeleteRecursive($item);
+        }
+    }
+
+    /**
+     * Recursively delete physical files and database records of a file or folder and all descendants
+     */
+    protected function forceDeleteRecursive($file)
+    {
+        if ($file->is_folder) {
+            $children = File::withTrashed()->where('parent_id', $file->id)->get();
+            foreach ($children as $child) {
+                $this->forceDeleteRecursive($child);
+            }
+        } else {
+            if ($file->storage_path) {
+                Storage::disk('public')->delete($file->storage_path);
+            }
+        }
+        $file->forceDelete();
     }
 }

@@ -29,6 +29,8 @@ class FilePreviewController extends Controller
             abort(403, 'Unauthorized to view this file');
         }
 
+        $fileModel->update(['accessed_at' => now()]);
+
         $previewData = $this->previewService->getPreviewData($fileModel);
         [$prevFileId, $nextFileId] = $this->getSiblingFileIds($fileModel);
 
@@ -70,6 +72,8 @@ class FilePreviewController extends Controller
             if (!$this->canViewFile($fileModel)) {
                 abort(403, 'Unauthorized to view this file');
             }
+
+            $fileModel->update(['accessed_at' => now()]);
 
             $previewData = $this->previewService->getPreviewData($fileModel);
             [$prevFileId, $nextFileId] = $this->getSiblingFileIds($fileModel);

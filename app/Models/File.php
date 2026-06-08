@@ -21,6 +21,7 @@ class File extends Model
         'is_folder',
         'is_shared',
         'is_starred',
+        'accessed_at',
     ];
 
     protected $casts = [
@@ -30,7 +31,17 @@ class File extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'accessed_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($file) {
+            if (empty($file->accessed_at)) {
+                $file->accessed_at = now();
+            }
+        });
+    }
 
     /**
      * Get parent folder

@@ -15,6 +15,8 @@ class OnlyOfficeController extends Controller
      */
     public function getConfig(File $file)
     {
+        $file->update(['accessed_at' => now()]);
+
         $jwtSecret = config('onlyoffice.jwt_secret');
 
         // Generate a secure signed URL for OnlyOffice to download the file.
