@@ -407,20 +407,24 @@ class DriveController extends Controller
         abort_unless(isset($templates[$kind]), 404);
 
         $template = $templates[$kind];
-        $storagePath = 'drive/onlyoffice/' . $kind . '/' . str_replace(' ', '-', strtolower($template['name']));
+        $parentId = $request->query('parent_id') ?? null;
+        $userId = $request->user()->id;
+
+        $uniqueName = $this->getUniqueFileName($parentId, $userId, $template['name']);
+        $storagePath = 'drive/onlyoffice/' . $kind . '/' . uniqid() . '_' . str_replace(' ', '-', strtolower($uniqueName));
 
         Storage::disk('public')->put($storagePath, '');
 
         $file = File::create([
-            'name' => $template['name'],
+            'name' => $uniqueName,
             'path' => $storagePath,
             'type' => 'file',
             'mime_type' => $template['mime'],
             'size' => 0,
             'storage_path' => $storagePath,
-            'created_by' => $request->user()->id,
+            'created_by' => $userId,
             'is_folder' => false,
-            'parent_id' => $request->query('parent_id') ?? null
+            'parent_id' => $parentId
         ]);
 
         $redirectUrl = route('drive.index', array_filter([
@@ -459,7 +463,25 @@ class DriveController extends Controller
             'name' => 'required|string|max:255',
         ]);
         
-        $file->name = $validated['name'];
+        $newName = $validated['name'];
+        
+        if (!$file->is_folder) {
+            $originalExt = pathinfo($file->name, PATHINFO_EXTENSION);
+            if ($originalExt !== '') {
+                // Check if the new name already ends with the original extension (case-insensitive)
+                $pattern = '/\.' . preg_quote($originalExt, '/') . '$/i';
+                if (!preg_match($pattern, $newName)) {
+                    // If the new name has a different extension, strip it
+                    $newExt = pathinfo($newName, PATHINFO_EXTENSION);
+                    if ($newExt !== '') {
+                        $newName = substr($newName, 0, -(strlen($newExt) + 1));
+                    }
+                    $newName = $newName . '.' . $originalExt;
+                }
+            }
+        }
+        
+        $file->name = $newName;
         $file->save();
         
         return response()->json([
@@ -601,5 +623,113 @@ class DriveController extends Controller
             'status' => 'success',
             'message' => 'Shared with ' . $sharedWithUser->name . ' (' . $sharedWithUser->email . ') successfully.'
         ]);
+    }
+
+    /**
+     * Get all folders for the authenticated user as JSON
+     */
+    public function allFolders(Request $request): JsonResponse
+    {
+        $folders = File::where('created_by', $request->user()->id)
+            ->where('is_folder', true)
+            ->get();
+            
+        return response()->json([
+            'status' => 'success',
+            'folders' => $folders
+        ]);
+    }
+
+    /**
+     * Move a file or folder to another folder
+     */
+    public function move(Request $request, File $file): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+        
+        $validated = $request->validate([
+            'parent_id' => 'nullable|integer|exists:files,id',
+        ]);
+        
+        $parentId = $validated['parent_id'];
+        
+        // Validation checks
+        if ($parentId !== null) {
+            $targetFolder = File::where('id', $parentId)
+                ->where('created_by', $request->user()->id)
+                ->where('is_folder', true)
+                ->first();
+                
+            if (!$targetFolder) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Target folder not found or access denied.'
+                ], 422);
+            }
+            
+            // Prevent moving a folder into itself
+            if ($file->is_folder && $file->id === $parentId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot move a folder inside itself.'
+                ], 422);
+            }
+            
+            // Prevent moving a folder into one of its descendants
+            if ($file->is_folder) {
+                if ($this->isDescendant($parentId, $file->id)) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Cannot move a folder inside its subfolders.'
+                    ], 422);
+                }
+            }
+        }
+        
+        $file->parent_id = $parentId;
+        $file->save();
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Item moved successfully.',
+            'file' => $file
+        ]);
+    }
+
+    /**
+     * Helper to check if a folder is a descendant of another folder
+     */
+    private function isDescendant(int $childId, int $parentId): bool
+    {
+        $child = File::find($childId);
+        while ($child && $child->parent_id !== null) {
+            if ($child->parent_id === $parentId) {
+                return true;
+            }
+            $child = File::find($child->parent_id);
+        }
+        return false;
+    }
+
+    /**
+     * Get a unique filename in the given directory context.
+     */
+    private function getUniqueFileName(?int $parentId, int $userId, string $filename): string
+    {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+        
+        $name = $filename;
+        $counter = 2;
+        
+        while (File::where('parent_id', $parentId)
+            ->where('created_by', $userId)
+            ->where('name', $name)
+            ->exists()) {
+            $name = $basename . $counter . ($extension !== '' ? '.' . $extension : '');
+            $counter++;
+        }
+        
+        return $name;
     }
 }
