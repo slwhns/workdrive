@@ -1083,9 +1083,31 @@ document.addEventListener('DOMContentLoaded', function () {
         contextMenu.innerHTML = menuHtml;
 
         // Position context menu using viewport coordinates (fixed positioning)
-        contextMenu.style.left = `${x}px`;
-        contextMenu.style.top = `${y}px`;
+        // First place it off-screen to measure its real dimensions
+        contextMenu.style.left = '-9999px';
+        contextMenu.style.top = '-9999px';
         contextMenu.classList.add('active');
+
+        // Now measure and reposition with viewport boundary checks
+        const menuRect = contextMenu.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        let finalX = x;
+        let finalY = y;
+
+        // Flip left if overflows right edge
+        if (finalX + menuRect.width > vw - 10) {
+            finalX = Math.max(10, x - menuRect.width);
+        }
+
+        // Flip upward if overflows bottom edge
+        if (finalY + menuRect.height > vh - 10) {
+            finalY = Math.max(10, y - menuRect.height);
+        }
+
+        contextMenu.style.left = `${finalX}px`;
+        contextMenu.style.top = `${finalY}px`;
 
         // Bind clicks
         document.getElementById('ctx-open')?.addEventListener('click', () => {
