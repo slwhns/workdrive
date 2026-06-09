@@ -21,17 +21,29 @@ class File extends Model
         'is_folder',
         'is_shared',
         'is_starred',
+        'tags',
         'accessed_at',
+        'share_token',
+        'share_expires_at',
+        'share_password',
+        'share_allow_download',
+        'share_allow_import',
+        'share_allow_direct_access',
     ];
 
     protected $casts = [
         'is_folder' => 'boolean',
         'is_shared' => 'boolean',
         'is_starred' => 'boolean',
+        'tags' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         'accessed_at' => 'datetime',
+        'share_expires_at' => 'datetime',
+        'share_allow_download' => 'boolean',
+        'share_allow_import' => 'boolean',
+        'share_allow_direct_access' => 'boolean',
     ];
 
     protected static function booted()
@@ -81,5 +93,19 @@ class File extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Check if file is publicly shared and not expired
+     */
+    public function isPublic()
+    {
+        if (empty($this->share_token)) {
+            return false;
+        }
+        if ($this->share_expires_at && now()->greaterThan($this->share_expires_at)) {
+            return false;
+        }
+        return true;
     }
 }

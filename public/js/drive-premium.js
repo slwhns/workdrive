@@ -8,8 +8,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. STATE MANAGEMENT
     // ------------------------------------------
     const state = {
-        currentTab: 'index',      // 'index', 'shared', 'recents', 'starred', 'trash', 'search'
+        currentTab: 'index',      // 'index', 'shared', 'recents', 'starred', 'trash', 'search', 'tag'
         currentFolderId: null,     // Current directory ID
+        currentTag: null,          // Current active tag name
+        tags: [],                  // All tags list
         searchQuery: '',           // Search query
         selectedItem: null,        // Selected file/folder object
         viewMode: 'grid',          // 'grid' or 'list'
@@ -90,23 +92,34 @@ document.addEventListener('DOMContentLoaded', function () {
             
             if (path.includes('/shared')) {
                 state.currentTab = 'shared';
+                state.currentTag = null;
             } else if (path.includes('/recents')) {
                 state.currentTab = 'recents';
+                state.currentTag = null;
             } else if (path.includes('/starred')) {
                 state.currentTab = 'starred';
+                state.currentTag = null;
             } else if (path.includes('/trash')) {
                 state.currentTab = 'trash';
+                state.currentTag = null;
             } else if (path.includes('/search')) {
                 state.currentTab = 'search';
+                state.currentTag = null;
                 state.searchQuery = url.searchParams.get('q') || '';
+            } else if (path.includes('/tags/')) {
+                state.currentTab = 'tag';
+                const segments = path.split('/');
+                state.currentTag = decodeURIComponent(segments[segments.indexOf('tags') + 1] || 'all');
             } else {
                 state.currentTab = 'index';
+                state.currentTag = null;
             }
 
             state.currentFolderId = url.searchParams.get('folder_id') || null;
         } catch (e) {
             state.currentTab = 'index';
             state.currentFolderId = null;
+            state.currentTag = null;
         }
     }
 
@@ -115,7 +128,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // ------------------------------------------
     function navigateSPA(tab, folderId = null, query = '', pushHistory = true) {
         state.currentTab = tab;
-        state.currentFolderId = folderId;
+        if (tab === 'tag') {
+            state.currentTag = folderId; // folderId is tag name
+            state.currentFolderId = null;
+        } else {
+            state.currentFolderId = folderId;
+            state.currentTag = null;
+        }
         state.searchQuery = query;
         state.selectedItem = null; // Reset selection on navigate
         state.showAllFolders = false;
@@ -129,6 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (tab === 'starred') pageTitle = 'Starred';
         else if (tab === 'trash') pageTitle = 'Trash';
         else if (tab === 'search') pageTitle = 'Search Results';
+        else if (tab === 'tag') pageTitle = state.currentTag === 'all' ? 'All Tags' : `Tag: ${state.currentTag}`;
         document.title = `WD | ${pageTitle}`;
 
         // Build browser URL
@@ -138,9 +158,10 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (tab === 'starred') url = '/starred';
         else if (tab === 'trash') url = '/trash';
         else if (tab === 'search') url = `/search?q=${encodeURIComponent(query)}`;
+        else if (tab === 'tag') url = `/tags/${encodeURIComponent(state.currentTag)}`;
 
-        if (folderId) {
-            url += (url.includes('?') ? '&' : '?') + `folder_id=${folderId}`;
+        if (state.currentFolderId) {
+            url += (url.includes('?') ? '&' : '?') + `folder_id=${state.currentFolderId}`;
         }
 
         if (pushHistory) {
@@ -177,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (state.currentTab === 'starred') apiUrl = '/starred';
         else if (state.currentTab === 'trash') apiUrl = '/trash';
         else if (state.currentTab === 'search') apiUrl = `/search?q=${encodeURIComponent(state.searchQuery)}`;
+        else if (state.currentTab === 'tag') apiUrl = `/tags/${encodeURIComponent(state.currentTag)}`;
 
         const params = [];
         params.push('json=1');
@@ -199,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 state.files = data.files || [];
                 state.breadcrumbs = data.breadcrumbs || [];
                 state.currentFolder = data.currentFolder || null;
+                state.tags = data.tags || [];
                 
                 renderSPAView();
                 fetchStorageUsage(); // Update storage panel
@@ -258,6 +281,15 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (state.currentTab === 'starred') { title = 'Starred'; subtitle = 'Starred documents and folders'; }
         else if (state.currentTab === 'trash') { title = 'Trash'; subtitle = 'Deleted items are stored here'; }
         else if (state.currentTab === 'search') { title = 'Search Results'; subtitle = `Showing results for "${state.searchQuery}"`; }
+        else if (state.currentTab === 'tag') {
+            if (state.currentTag === 'all') {
+                title = 'All Tags';
+                subtitle = 'Organize and access items using tags';
+            } else {
+                title = `Tag: ${state.currentTag}`;
+                subtitle = `Showing items tagged with ${state.currentTag}`;
+            }
+        }
 
         let html = `
             <div class="drive-view">
@@ -328,11 +360,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!container) return;
 
         if (state.currentTab !== 'index') {
+            const tabLabel = state.currentTab === 'tag' ? (state.currentTag === 'all' ? 'ALL TAGS' : `TAG: ${state.currentTag.toUpperCase()}`) : state.currentTab.toUpperCase();
             container.innerHTML = `
                 <div class="breadcrumbs">
                     <a href="#" data-spa-tab="index" data-spa-folder="null">My Drive</a>
                     <span class="divider">/</span>
-                    <span class="active">${state.currentTab.toUpperCase()}</span>
+                    <span class="active">${tabLabel}</span>
                 </div>
             `;
         } else {
@@ -369,6 +402,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const totalItems = state.folders.length + state.files.length;
 
+        if (state.currentTab === 'tag' && state.currentTag === 'all') {
+            let tagsHtml = `
+                <div class="tags-grid" style="grid-column: 1 / -1;">
+            `;
+            const tags = state.tags || [];
+            tags.forEach(tag => {
+                const isStandard = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'].includes(tag);
+                tagsHtml += `
+                    <div class="tag-card" data-tag-name="${tag}">
+                        <span class="tag-card-dot ${isStandard ? 'tag-dot-' + tag.toLowerCase() : 'tag-dot-custom'}">
+                            ${isStandard ? '' : '<i class="ri-price-tag-3-fill"></i>'}
+                        </span>
+                        <span class="tag-card-name">${tag}</span>
+                    </div>
+                `;
+            });
+            tagsHtml += `</div>`;
+            grid.innerHTML = tagsHtml;
+            return;
+        }
+
         if (totalItems === 0) {
             let emptyTitle = 'No files yet';
             let emptySubtitle = 'Start by creating a folder, uploading files, or creating office documents.';
@@ -377,6 +431,10 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (state.currentTab === 'starred') { emptyTitle = 'Nothing starred yet'; emptySubtitle = 'Star important documents and folders to access them quickly.'; }
             else if (state.currentTab === 'trash') { emptyTitle = 'Trash is empty'; emptySubtitle = 'Items moved to trash will reside here for 30 days.'; }
             else if (state.currentTab === 'search') { emptyTitle = 'No matches found'; emptySubtitle = `We couldn't find any folders or files matching "${state.searchQuery}".`; }
+            else if (state.currentTab === 'tag') {
+                emptyTitle = `No items tagged with "${state.currentTag}"`;
+                emptySubtitle = 'Add this tag to files or folders to see them here.';
+            }
 
             grid.innerHTML = `
                 <div class="drive-empty-card pd-40 text-center w-100">
@@ -552,13 +610,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const formattedSize = isFolder ? '--' : formatBytes(item.size);
 
         if (state.viewMode === 'list' && !forceGridView) {
+            const tagsHtml = renderCardTagsInline(item.tags);
             return `
                 <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" data-file-id="${item.id}" data-is-folder="${isFolder}">
                     <div class="drive-card-top">
                         <div class="drive-card-icon ${typeInfo.iconColorClass}">
                             <i class="${typeInfo.icon}"></i>
                         </div>
-                        <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                        <div class="d-flex fd-column overflow-hidden">
+                            <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            ${tagsHtml}
+                        </div>
                     </div>
                     <div class="col-modified">${formattedDate}</div>
                     <div class="col-size">${formattedSize}</div>
@@ -571,6 +633,7 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         } else {
             if (isFolder) {
+                const tagsHtml = renderCardTagsInline(item.tags);
                 // Compact Google Drive-style Folder Card
                 return `
                     <div class="drive-card folder-card ${selectedClass}" data-item-id="${item.id}" data-item-type="folder" data-file-id="${item.id}" data-is-folder="true">
@@ -578,7 +641,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="drive-card-icon ${typeInfo.iconColorClass}">
                                 <i class="${typeInfo.icon}"></i>
                             </div>
-                            <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            <div class="d-flex fd-column fg-1 overflow-hidden" style="margin-inline-start: 4px;">
+                                <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                                ${tagsHtml}
+                            </div>
                             <div class="folder-card-actions">
                                 <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="folder" title="Star folder"></i>
                                 <button type="button" class="btn-more spa-card-action-trigger" data-item-id="${item.id}" data-item-type="folder">
@@ -589,6 +655,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 `;
             } else {
+                const tagsHtml = renderCardTagsInline(item.tags);
                 // Detailed Google Drive-style File Card with Preview Area
                 return `
                     <div class="drive-card file-card ${selectedClass}" data-item-id="${item.id}" data-item-type="file" data-file-id="${item.id}" data-is-folder="false">
@@ -608,10 +675,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         
                         <div class="file-card-footer">
                             <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="file" title="Star file"></i>
-                            <div class="file-card-meta">
-                                <span>${formattedSize}</span>
-                                <span>•</span>
-                                <span>${formattedDate}</span>
+                            <div class="d-flex fd-column ai-end gap-2">
+                                ${tagsHtml}
+                                <div class="file-card-meta">
+                                    <span>${formattedSize}</span>
+                                    <span>•</span>
+                                    <span>${formattedDate}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -812,16 +882,22 @@ document.addEventListener('DOMContentLoaded', function () {
             link.addEventListener('click', function (e) {
                 const href = this.getAttribute('href');
                 // Only intercept internal links
-                if (href.startsWith('/') || href.startsWith('http://localhost') || href.startsWith('http://127.0.0.1')) {
+                if (href.startsWith('/') || href.startsWith('http://localhost') || href.startsWith('http://127.0.0.1') || href.includes('/tags/')) {
                     e.preventDefault();
                     
                     let tab = 'index';
+                    let param = null;
                     if (href.includes('/shared')) tab = 'shared';
                     else if (href.includes('/recents')) tab = 'recents';
                     else if (href.includes('/starred')) tab = 'starred';
                     else if (href.includes('/trash')) tab = 'trash';
+                    else if (href.includes('/tags/')) {
+                        tab = 'tag';
+                        const segments = href.split('/');
+                        param = decodeURIComponent(segments[segments.indexOf('tags') + 1] || 'all');
+                    }
 
-                    navigateSPA(tab, null);
+                    navigateSPA(tab, param);
                 }
             });
         });
@@ -830,6 +906,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function bindNewViewEvents() {
         // Close context menu when main scroll container is scrolled
         document.querySelector('.drive-main-panel')?.addEventListener('scroll', closeContextMenu, { passive: true });
+
+        // Tag card clicks in All Tags view
+        document.querySelectorAll('.tag-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const tagName = this.getAttribute('data-tag-name');
+                navigateSPA('tag', tagName);
+            });
+        });
 
         // Toggle view buttons
         document.getElementById('view-toggle-list')?.addEventListener('click', function(e) {
@@ -1068,6 +1153,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="button" class="context-menu-item" id="ctx-move">
                     <i class="ri-folder-transfer-line"></i> <span>Move to...</span>
                 </button>
+                <button type="button" class="context-menu-item" id="ctx-tags-edit">
+                    <i class="ri-price-tag-3-line"></i> <span>Edit Tags...</span>
+                </button>
                 ${!isFolder ? `
                     <button type="button" class="context-menu-item" id="ctx-download">
                         <i class="ri-download-line"></i> <span>Download</span>
@@ -1144,6 +1232,11 @@ document.addEventListener('DOMContentLoaded', function () {
             openMoveModal();
         });
 
+        document.getElementById('ctx-tags-edit')?.addEventListener('click', () => {
+            closeContextMenu();
+            openTagsModal();
+        });
+
         document.getElementById('ctx-download')?.addEventListener('click', () => {
             closeContextMenu();
             executeDownload(state.selectedItem.id);
@@ -1216,6 +1309,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             <span class="drawer-info-label">Modified</span>
                             <span class="drawer-info-value">${formattedUpdated}</span>
                         </div>
+                        <div class="drawer-info-row" style="align-items: center;">
+                            <span class="drawer-info-label">Tags</span>
+                            <span class="drawer-info-value" id="drawer-tags-val">${renderDrawerTags(item.tags)}</span>
+                        </div>
                         <div class="drawer-info-row">
                             <span class="drawer-info-label">Starred</span>
                             <span class="drawer-info-value">${item.is_starred ? 'Yes' : 'No'}</span>
@@ -1257,6 +1354,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('drawer-btn-open')?.addEventListener('click', () => {
             navigateSPA(state.currentTab, item.id);
+        });
+
+        document.getElementById('btn-drawer-edit-tags')?.addEventListener('click', () => {
+            openTagsModal();
         });
 
         document.getElementById('drawer-btn-preview')?.addEventListener('click', () => {
@@ -1518,11 +1619,6 @@ document.addEventListener('DOMContentLoaded', function () {
         openModal(renameModal);
     }
 
-    function openShareModal() {
-        if (!shareModal) return;
-        openModal(shareModal);
-    }
-
     function openModal(modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden'; // Lock background scroll
@@ -1531,14 +1627,10 @@ document.addEventListener('DOMContentLoaded', function () {
     function closeModal(modal) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
-        
-        // Clean forms
         modal.querySelectorAll('input').forEach(i => i.value = '');
     }
 
-    // Modal action forms
     document.getElementById('btn-close-rename')?.addEventListener('click', () => closeModal(renameModal));
-    document.getElementById('btn-close-share')?.addEventListener('click', () => closeModal(shareModal));
 
     document.getElementById('rename-form')?.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1548,14 +1640,278 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    document.getElementById('share-form')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const email = this.querySelector('#share-email-input').value.trim();
-        const permission = this.querySelector('#share-permission-select').value;
-        if (email) {
-            executeShare(email, permission);
+    function openShareModal() {
+        if (!shareModal || !state.selectedItem) return;
+        openModal(shareModal);
+        loadShareSettings(state.selectedItem.id);
+    }
+
+    function loadShareSettings(itemId) {
+        fetch(`/drive/files/${itemId}/shares`, {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const titleEl = document.getElementById('share-modal-title');
+                if (titleEl) titleEl.innerText = `Share '${state.selectedItem.name}'`;
+
+                const listEl = document.getElementById('collaborators-list');
+                if (listEl) {
+                    listEl.innerHTML = '';
+                    
+                    // Add Owner
+                    const ownerHtml = `
+                        <div class="collaborator-item">
+                            <div class="collab-avatar">${data.owner.name.substring(0, 1).toUpperCase()}</div>
+                            <div class="collab-info">
+                                <span class="collab-name">${data.owner.name}</span>
+                                <span class="collab-email">${data.owner.email}</span>
+                            </div>
+                            <span class="collab-role-label">Owner</span>
+                        </div>
+                    `;
+                    listEl.insertAdjacentHTML('beforeend', ownerHtml);
+
+                    // Add Collaborators
+                    data.collaborators.forEach(collab => {
+                        const collabHtml = `
+                            <div class="collaborator-item">
+                                <div class="collab-avatar">${collab.user.name.substring(0, 1).toUpperCase()}</div>
+                                <div class="collab-info">
+                                    <span class="collab-name">${collab.user.name}</span>
+                                    <span class="collab-email">${collab.user.email}</span>
+                                </div>
+                                <div class="collab-actions">
+                                    <select onchange="updateCollaboratorRole('${collab.id}', this.value)" class="collab-role-select">
+                                        <option value="view" ${collab.permission === 'view' ? 'selected' : ''}>Can view</option>
+                                        <option value="edit" ${collab.permission === 'edit' ? 'selected' : ''}>Can edit</option>
+                                    </select>
+                                    <button type="button" class="collab-revoke-btn" onclick="revokeCollaboratorAccess('${collab.id}')" title="Revoke access">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        listEl.insertAdjacentHTML('beforeend', collabHtml);
+                    });
+                }
+
+                // Public link toggle & fields
+                const toggle = document.getElementById('public-link-toggle');
+                const details = document.getElementById('public-link-details');
+                const label = document.getElementById('public-link-status-label');
+                const urlInput = document.getElementById('shareable-link-url');
+
+                if (toggle) toggle.checked = data.public_link.active;
+                if (label) label.innerText = data.public_link.active ? 'Shareable link is created' : 'Shareable link is disabled';
+                if (details) details.style.display = data.public_link.active ? 'block' : 'none';
+                if (urlInput) urlInput.value = data.public_link.share_url || '';
+
+                // Populate settings fields
+                const expiryToggle = document.getElementById('expiry-toggle');
+                const expiryDateContainer = document.getElementById('expiry-date-container');
+                const expiresAtInput = document.getElementById('settings-expires-at');
+                
+                const pwdToggle = document.getElementById('password-toggle');
+                const pwdInputContainer = document.getElementById('password-input-container');
+                const pwdInput = document.getElementById('settings-password');
+
+                const dlToggle = document.getElementById('settings-allow-download');
+                const impToggle = document.getElementById('settings-allow-import');
+                const daToggle = document.getElementById('settings-allow-direct-access');
+
+                if (expiryToggle) {
+                    expiryToggle.checked = !!data.public_link.expires_at;
+                    expiryDateContainer.style.display = data.public_link.expires_at ? 'block' : 'none';
+                }
+                if (expiresAtInput) expiresAtInput.value = data.public_link.expires_at || '';
+
+                if (pwdToggle) {
+                    pwdToggle.checked = data.public_link.has_password;
+                    pwdInputContainer.style.display = data.public_link.has_password ? 'block' : 'none';
+                }
+                if (pwdInput) pwdInput.value = ''; // Don't show password hash
+
+                if (dlToggle) dlToggle.checked = data.public_link.allow_download;
+                if (impToggle) impToggle.checked = data.public_link.allow_import;
+                if (daToggle) daToggle.checked = data.public_link.allow_direct_access;
+            }
+        });
+    }
+
+    // Attach global functions to window
+    window.updateCollaboratorRole = function(shareId, permission) {
+        if (!state.selectedItem) return;
+        const fileId = state.selectedItem.id;
+        fetch(`/drive/files/${fileId}/shares/${shareId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ permission: permission })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                loadShareSettings(fileId);
+            }
+        });
+    };
+
+    window.revokeCollaboratorAccess = function(shareId) {
+        if (!state.selectedItem) return;
+        const fileId = state.selectedItem.id;
+        if (!confirm('Are you sure you want to revoke access for this user?')) return;
+
+        fetch(`/drive/files/${fileId}/shares/${shareId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                loadShareSettings(fileId);
+            }
+        });
+    };
+
+    window.handleInvite = function(event) {
+        event.preventDefault();
+        if (!state.selectedItem) return;
+        const fileId = state.selectedItem.id;
+        const email = document.getElementById('invite-email-input').value.trim();
+        const permission = document.getElementById('invite-permission-select').value;
+
+        if (!email) return;
+
+        fetch(`/drive/files/${fileId}/share`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ email: email, permission: permission })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                document.getElementById('invite-email-input').value = '';
+                loadShareSettings(fileId);
+                loadCurrentView(false);
+            } else {
+                showToast(data.message || 'Error inviting user.', 'error');
+            }
+        })
+        .catch(err => showToast('User email not found or error occurred.', 'error'));
+    };
+
+    window.handlePublicLinkToggle = function(checkbox) {
+        if (!state.selectedItem) return;
+        const fileId = state.selectedItem.id;
+        const active = checkbox.checked;
+
+        fetch(`/drive/files/${fileId}/public-link`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ active: active })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(active ? 'Public link enabled.' : 'Public link disabled.');
+                loadShareSettings(fileId);
+                loadCurrentView(false);
+            }
+        });
+    };
+
+    window.switchToSettingsPanel = function() {
+        document.getElementById('share-main-panel').classList.remove('active');
+        document.getElementById('share-settings-panel').classList.add('active');
+    };
+
+    window.switchToMainPanel = function() {
+        document.getElementById('share-settings-panel').classList.remove('active');
+        document.getElementById('share-main-panel').classList.add('active');
+    };
+
+    window.toggleSettingsInput = function(checkbox, targetId) {
+        document.getElementById(targetId).style.display = checkbox.checked ? 'block' : 'none';
+    };
+
+    window.copyShareableLink = function() {
+        const urlInput = document.getElementById('shareable-link-url');
+        if (urlInput && urlInput.value) {
+            urlInput.select();
+            navigator.clipboard.writeText(urlInput.value)
+                .then(() => showToast('Link copied to clipboard!'))
+                .catch(() => showToast('Failed to copy link.', 'error'));
         }
-    });
+    };
+
+    window.closeShareModal = function() {
+        const modal = document.getElementById('share-modal');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+            switchToMainPanel();
+        }
+    };
+
+    window.handleSaveSettings = function(event) {
+        event.preventDefault();
+        if (!state.selectedItem) return;
+        const fileId = state.selectedItem.id;
+
+        const expiryToggle = document.getElementById('expiry-toggle').checked;
+        const expiresAt = expiryToggle ? document.getElementById('settings-expires-at').value : null;
+
+        const passwordToggle = document.getElementById('password-toggle').checked;
+        const password = passwordToggle ? document.getElementById('settings-password').value : null;
+
+        const allowDownload = document.getElementById('settings-allow-download').checked;
+        const allowImport = document.getElementById('settings-allow-import').checked;
+        const allowDirectAccess = document.getElementById('settings-allow-direct-access').checked;
+
+        fetch(`/drive/files/${fileId}/public-link-settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                expires_at: expiresAt,
+                password_enabled: passwordToggle,
+                password: password,
+                allow_download: allowDownload,
+                allow_import: allowImport,
+                allow_direct_access: allowDirectAccess
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                switchToMainPanel();
+                loadShareSettings(fileId);
+            }
+        });
+    };
 
     let moveModalFolders = [];
     let moveCurrentFolderId = null;
@@ -2192,31 +2548,159 @@ document.addEventListener('DOMContentLoaded', function () {
             share.id = 'share-modal';
             share.className = 'premium-modal';
             share.innerHTML = `
-                <div class="premium-modal-backdrop"></div>
-                <div class="premium-modal-dialog">
-                    <div class="premium-modal-header">
-                        <span class="premium-modal-title"><i class="ri-share-line clr-plt1"></i> Share document</span>
-                        <button type="button" class="btn-close-drawer" onclick="this.closest('.premium-modal').classList.remove('active')"><i class="ri-close-line"></i></button>
-                    </div>
-                    <form id="share-form">
+                <div class="premium-modal-backdrop" onclick="closeShareModal()"></div>
+                <div class="premium-modal-dialog share-dialog">
+                    <!-- Main Share Panel -->
+                    <div id="share-main-panel" class="share-panel active">
+                        <div class="premium-modal-header">
+                            <span class="premium-modal-title" id="share-modal-title">Share document</span>
+                            <button type="button" class="btn-close-drawer" onclick="closeShareModal()"><i class="ri-close-line"></i></button>
+                        </div>
                         <div class="premium-modal-body">
-                            <div class="form-group">
-                                <label class="form-label" for="share-email-input">Colleague's Email</label>
-                                <input type="email" id="share-email-input" class="form-control" placeholder="colleague@example.com" required autocomplete="off">
+                            <!-- Invite People Section -->
+                            <div class="share-section">
+                                <h3 class="share-section-title">Invite people</h3>
+                                <form id="invite-form" onsubmit="handleInvite(event)">
+                                    <div class="invite-input-row">
+                                        <input type="email" id="invite-email-input" class="form-control" placeholder="Enter email address" required autocomplete="off">
+                                        <select id="invite-permission-select" class="form-control permission-select">
+                                            <option value="view">Can view</option>
+                                            <option value="edit">Can edit</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-primary btn-invite">Invite</button>
+                                    </div>
+                                </form>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label" for="share-permission-select">Permission Level</label>
-                                <select id="share-permission-select" class="form-control" style="background:#181b22;">
-                                    <option value="view">Can view</option>
-                                    <option value="edit">Can edit</option>
-                                </select>
+
+                            <!-- People with Access Section -->
+                            <div class="share-section">
+                                <h3 class="share-section-title">People with access</h3>
+                                <div id="collaborators-list" class="collaborators-list">
+                                    <!-- Dynamic collaborators -->
+                                </div>
+                            </div>
+
+                            <!-- Public Access Section -->
+                            <div class="share-section public-access-section">
+                                <div class="public-access-header">
+                                    <h3 class="share-section-title">Public access</h3>
+                                    <div class="public-toggle-container">
+                                        <label class="switch">
+                                            <input type="checkbox" id="public-link-toggle" onchange="handlePublicLinkToggle(this)">
+                                            <span class="slider round"></span>
+                                        </label>
+                                        <span class="toggle-label" id="public-link-status-label">Shareable link is disabled</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="public-link-details" class="public-link-details" style="display: none;">
+                                    <div class="link-url-row">
+                                        <input type="text" id="shareable-link-url" class="form-control link-url-input" readonly>
+                                        <button type="button" class="btn btn-primary btn-copy" onclick="copyShareableLink()">
+                                            <i class="ri-file-copy-line"></i> Copy
+                                        </button>
+                                    </div>
+                                    <button type="button" class="link-settings-trigger-btn" onclick="switchToSettingsPanel()">
+                                        <i class="ri-settings-4-line"></i> Link settings
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="premium-modal-footer">
-                            <button type="button" class="btn btn-outline" id="btn-close-share">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Share</button>
+                    </div>
+
+                    <!-- Link Settings Panel -->
+                    <div id="share-settings-panel" class="share-panel">
+                        <div class="premium-modal-header">
+                            <span class="premium-modal-title">Shareable Link Settings</span>
+                            <button type="button" class="btn-close-drawer" onclick="closeShareModal()"><i class="ri-close-line"></i></button>
                         </div>
-                    </form>
+                        <form id="link-settings-form" onsubmit="handleSaveSettings(event)">
+                            <div class="premium-modal-body">
+                                <!-- Link expiration -->
+                                <div class="settings-group">
+                                    <div class="settings-toggle-row">
+                                        <div class="settings-text">
+                                            <span class="settings-title">Link expiration</span>
+                                            <span class="settings-desc">Link is valid until a specific date</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="expiry-toggle" onchange="toggleSettingsInput(this, 'expiry-date-container')">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    <div id="expiry-date-container" class="settings-input-container" style="display: none;">
+                                        <input type="datetime-local" id="settings-expires-at" class="form-control">
+                                    </div>
+                                </div>
+
+                                <!-- Password protect -->
+                                <div class="settings-group">
+                                    <div class="settings-toggle-row">
+                                        <div class="settings-text">
+                                            <span class="settings-title">Password protect</span>
+                                            <span class="settings-desc">Users will need to enter password in order to view this link</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="password-toggle" onchange="toggleSettingsInput(this, 'password-input-container')">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    <div id="password-input-container" class="settings-input-container" style="display: none;">
+                                        <input type="password" id="settings-password" class="form-control" placeholder="Enter new password (min 4 characters)">
+                                        <p class="settings-note">Password will not be requested when viewing the link as file owner.</p>
+                                    </div>
+                                </div>
+
+                                <!-- Allow download -->
+                                <div class="settings-group">
+                                    <div class="settings-toggle-row">
+                                        <div class="settings-text">
+                                            <span class="settings-title">Allow download</span>
+                                            <span class="settings-desc">Users with link can download this item</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="settings-allow-download" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Allow import -->
+                                <div class="settings-group">
+                                    <div class="settings-toggle-row">
+                                        <div class="settings-text">
+                                            <span class="settings-title">Allow import</span>
+                                            <span class="settings-desc">Users with link can import this item into their own drive</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="settings-allow-import" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Allow direct access -->
+                                <div class="settings-group">
+                                    <div class="settings-toggle-row">
+                                        <div class="settings-text">
+                                            <span class="settings-title">Allow direct access</span>
+                                            <span class="settings-desc">Allow accessing contents of the file directly using this link</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="settings-allow-direct-access" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="premium-modal-footer settings-footer">
+                                <button type="button" class="btn btn-outline" onclick="switchToMainPanel()">
+                                    <i class="ri-arrow-left-line"></i> Back
+                                </button>
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             `;
             document.body.appendChild(share);
@@ -2323,6 +2807,94 @@ document.addEventListener('DOMContentLoaded', function () {
             toast.className = 'toast-container';
             document.body.appendChild(toast);
         }
+
+        // Create Tags Modal
+        if (!document.getElementById('tags-modal')) {
+            const tags = document.createElement('div');
+            tags.id = 'tags-modal';
+            tags.className = 'premium-modal';
+            tags.innerHTML = `
+                <div class="premium-modal-backdrop"></div>
+                <div class="premium-modal-dialog">
+                    <div class="premium-modal-header">
+                        <span class="premium-modal-title"><i class="ri-price-tag-3-line clr-plt1"></i> Edit Tags</span>
+                        <button type="button" class="btn-close-drawer" onclick="this.closest('.premium-modal').classList.remove('active')"><i class="ri-close-line"></i></button>
+                    </div>
+                    <form id="tags-form">
+                        <div class="premium-modal-body">
+                            <div class="form-group">
+                                <label class="form-label">Active Tags</label>
+                                <div id="modal-active-tags-container" class="d-flex fw-wrap gap-8 mg-b-15" style="margin-bottom: 15px;">
+                                    <!-- tags render here -->
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="tags-input">Add Tag</label>
+                                <div class="d-flex gap-8" style="display: flex; gap: 8px;">
+                                    <input type="text" id="tags-input" class="form-control" placeholder="Enter tag name..." autocomplete="off">
+                                    <button type="button" id="btn-add-modal-tag" class="btn btn-secondary">Add</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Quick Color Tags</label>
+                                <div class="d-flex gap-10" style="display: flex; gap: 10px; margin-top: 5px;">
+                                    <span class="tag-dot tag-dot-click tag-dot-red select-color-tag" data-tag="Red" title="Red"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-orange select-color-tag" data-tag="Orange" title="Orange"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-yellow select-color-tag" data-tag="Yellow" title="Yellow"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-green select-color-tag" data-tag="Green" title="Green"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-blue select-color-tag" data-tag="Blue" title="Blue"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-purple select-color-tag" data-tag="Purple" title="Purple"></span>
+                                    <span class="tag-dot tag-dot-click tag-dot-grey select-color-tag" data-tag="Grey" title="Grey"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="premium-modal-footer">
+                            <button type="button" class="btn btn-outline" id="btn-close-tags">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Tags</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(tags);
+
+            const tagsModal = document.getElementById('tags-modal');
+            
+            tagsModal.querySelector('#btn-add-modal-tag')?.addEventListener('click', () => {
+                const input = tagsModal.querySelector('#tags-input');
+                const tagVal = input.value.trim();
+                if (tagVal) {
+                    if (!modalActiveTags.includes(tagVal)) {
+                        modalActiveTags.push(tagVal);
+                        renderModalActiveTags();
+                    }
+                    input.value = '';
+                }
+            });
+
+            tagsModal.querySelector('#tags-input')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    tagsModal.querySelector('#btn-add-modal-tag')?.click();
+                }
+            });
+
+            tagsModal.querySelectorAll('.select-color-tag').forEach(dot => {
+                dot.addEventListener('click', function() {
+                    const tagVal = this.getAttribute('data-tag');
+                    if (!modalActiveTags.includes(tagVal)) {
+                        modalActiveTags.push(tagVal);
+                        renderModalActiveTags();
+                    }
+                });
+            });
+
+            tagsModal.querySelector('#btn-close-tags')?.addEventListener('click', () => closeModal(tagsModal));
+
+            tagsModal.querySelector('#tags-form')?.addEventListener('submit', function(e) {
+                e.preventDefault();
+                executeTagsSave(modalActiveTags);
+            });
+        }
     }
 
     function bindGlobalDocumentClicks() {
@@ -2361,7 +2933,12 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (state.currentTab === 'recents' && href.includes('/recents')) isCurrent = true;
             else if (state.currentTab === 'starred' && href.includes('/starred')) isCurrent = true;
             else if (state.currentTab === 'trash' && href.includes('/trash')) isCurrent = true;
-            else if (state.currentTab === 'index' && !href.includes('/shared') && !href.includes('/recents') && !href.includes('/starred') && !href.includes('/trash')) isCurrent = true;
+            else if (state.currentTab === 'tag' && href.includes('/tags/')) {
+                const segments = href.split('/');
+                const tagInHref = decodeURIComponent(segments[segments.indexOf('tags') + 1] || '');
+                if (tagInHref === state.currentTag) isCurrent = true;
+            }
+            else if (state.currentTab === 'index' && !href.includes('/shared') && !href.includes('/recents') && !href.includes('/starred') && !href.includes('/trash') && !href.includes('/tags/')) isCurrent = true;
 
             if (isCurrent) {
                 link.classList.add('app-nav-active');
@@ -2493,5 +3070,138 @@ document.addEventListener('DOMContentLoaded', function () {
             "'": '&#039;'
         };
         return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    // Tag management helpers
+    let modalActiveTags = [];
+
+    function openTagsModal() {
+        const modal = document.getElementById('tags-modal');
+        if (!modal || !state.selectedItem) return;
+
+        modalActiveTags = [...(state.selectedItem.tags || [])];
+        renderModalActiveTags();
+
+        const input = modal.querySelector('#tags-input');
+        if (input) input.value = '';
+
+        openModal(modal);
+    }
+
+    function renderModalActiveTags() {
+        const container = document.getElementById('modal-active-tags-container');
+        if (!container) return;
+
+        if (modalActiveTags.length === 0) {
+            container.innerHTML = '<span class="clr-grey2 italic fs-12">No active tags</span>';
+            return;
+        }
+
+        let html = '';
+        modalActiveTags.forEach((tag, idx) => {
+            const isStandard = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'].includes(tag);
+            const dotClass = isStandard ? `tag-dot tag-dot-mini tag-dot-${tag.toLowerCase()}` : '';
+            html += `
+                <span class="tag-pill-modal" style="${isStandard ? 'border-color:' + getColorCodeForTag(tag) : ''}">
+                    ${isStandard ? `<span class="${dotClass}"></span>` : ''}
+                    <span>${escapeHtml(tag)}</span>
+                    <button type="button" class="btn-remove-tag" data-index="${idx}">&times;</button>
+                </span>
+            `;
+        });
+        container.innerHTML = html;
+
+        container.querySelectorAll('.btn-remove-tag').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.getAttribute('data-index'));
+                modalActiveTags.splice(idx, 1);
+                renderModalActiveTags();
+            });
+        });
+    }
+
+    function renderDrawerTags(tags) {
+        let html = '<div class="drawer-tags-wrap d-flex ai-center gap-4 fw-wrap" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">';
+        if (tags && Array.isArray(tags) && tags.length > 0) {
+            tags.forEach(tag => {
+                const isStandard = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'].includes(tag);
+                if (isStandard) {
+                    html += `<span class="tag-pill-drawer is-color" style="border-color:${getColorCodeForTag(tag)}"><span class="tag-dot tag-dot-mini tag-dot-${tag.toLowerCase()}"></span> ${tag}</span>`;
+                } else {
+                    html += `<span class="tag-pill-drawer">${escapeHtml(tag)}</span>`;
+                }
+            });
+        } else {
+            html += '<span class="clr-grey2 italic fs-12">None</span>';
+        }
+        html += `<button type="button" id="btn-drawer-edit-tags" class="btn-edit-tags-mini" title="Edit tags"><i class="ri-edit-2-line"></i></button>`;
+        html += '</div>';
+        return html;
+    }
+
+    function executeTagsSave(tags) {
+        if (!state.selectedItem) return;
+        const id = state.selectedItem.id;
+
+        fetch(`/drive/files/${id}/tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ tags: tags })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                closeModal(document.getElementById('tags-modal'));
+                
+                if (state.selectedItem && state.selectedItem.id === id) {
+                    state.selectedItem.tags = tags;
+                }
+                const folderIndex = state.folders.findIndex(f => f.id === id);
+                if (folderIndex !== -1) state.folders[folderIndex].tags = tags;
+                const fileIndex = state.files.findIndex(f => f.id === id);
+                if (fileIndex !== -1) state.files[fileIndex].tags = tags;
+                
+                loadCurrentView(false);
+            } else {
+                showToast(data.message || 'Error saving tags.', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('Error saving tags.', 'error');
+        });
+    }
+
+    function renderCardTagsInline(tags) {
+        if (!tags || !Array.isArray(tags) || tags.length === 0) return '';
+        let html = '<div class="card-tags-inline d-flex gap-4 ai-center">';
+        tags.forEach(tag => {
+            const isStandard = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'].includes(tag);
+            if (isStandard) {
+                html += `<span class="tag-dot-mini tag-dot-${tag.toLowerCase()}" title="${tag}"></span>`;
+            } else {
+                html += `<span class="tag-pill-mini" title="${tag}">${escapeHtml(tag)}</span>`;
+            }
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function getColorCodeForTag(tag) {
+        switch (tag) {
+            case 'Red': return 'rgba(255, 59, 48, 0.3)';
+            case 'Orange': return 'rgba(255, 149, 0, 0.3)';
+            case 'Yellow': return 'rgba(255, 204, 0, 0.3)';
+            case 'Green': return 'rgba(52, 199, 89, 0.3)';
+            case 'Blue': return 'rgba(0, 122, 255, 0.3)';
+            case 'Purple': return 'rgba(175, 82, 222, 0.3)';
+            case 'Grey': return 'rgba(142, 142, 147, 0.3)';
+            default: return 'rgba(255, 255, 255, 0.1)';
+        }
     }
 });

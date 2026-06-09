@@ -751,6 +751,121 @@ class DriveController extends Controller
     /**
      * Recursively delete physical files and database records of a file or folder and all descendants
      */
+    /**
+     * Show items tagged with a specific tag (or all tags view)
+     */
+    public function tag(Request $request, string $tag)
+    {
+        $user = $request->user();
+        
+        if ($tag === 'all') {
+            $filesWithTags = File::where('created_by', $user->id)
+                ->whereNotNull('tags')
+                ->get(['tags']);
+            
+            $tags = [];
+            foreach ($filesWithTags as $file) {
+                if (is_array($file->tags)) {
+                    foreach ($file->tags as $t) {
+                        $tags[] = $t;
+                    }
+                }
+            }
+            $standardTags = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'];
+            $allTags = array_unique(array_merge($standardTags, $tags));
+            sort($allTags);
+            
+            if ($request->wantsJson() || $request->query('json')) {
+                return response()->json([
+                    'status' => 'success',
+                    'tags' => $allTags,
+                    'folders' => [],
+                    'files' => []
+                ]);
+            }
+            
+            $folders = collect();
+            $files = collect();
+            return view('drive.index', compact('folders', 'files'));
+        }
+        
+        $query = File::where('created_by', $user->id);
+        
+        $query->where(function($q) use ($tag) {
+            $q->whereJsonContains('tags', $tag)
+              ->orWhere('tags', 'like', '%"' . $tag . '"%');
+        });
+        
+        $folders = (clone $query)->where('is_folder', true)->get();
+        $files = (clone $query)->where('is_folder', false)->get();
+        
+        if ($request->wantsJson() || $request->query('json')) {
+            return response()->json([
+                'status' => 'success',
+                'folders' => $folders,
+                'files' => $files,
+                'tag' => $tag
+            ]);
+        }
+        
+        return view('drive.index', compact('folders', 'files'));
+    }
+
+    /**
+     * Get all unique tags for the user as JSON
+     */
+    public function allTags(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $filesWithTags = File::where('created_by', $user->id)
+            ->whereNotNull('tags')
+            ->get(['tags']);
+        
+        $tags = [];
+        foreach ($filesWithTags as $file) {
+            if (is_array($file->tags)) {
+                foreach ($file->tags as $t) {
+                    $tags[] = $t;
+                }
+            }
+        }
+        
+        $standardTags = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Grey'];
+        $allTags = array_unique(array_merge($standardTags, $tags));
+        sort($allTags);
+        
+        return response()->json([
+            'status' => 'success',
+            'tags' => $allTags
+        ]);
+    }
+
+    /**
+     * Update tags for a file or folder
+     */
+    public function updateTags(Request $request, File $file): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+        
+        $validated = $request->validate([
+            'tags' => 'nullable|array',
+            'tags.*' => 'string|max:50',
+        ]);
+        
+        $file->tags = $validated['tags'] ?? [];
+        $file->save();
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Tags updated successfully.',
+            'file' => $file
+        ]);
+    }
+
+    /**
+     * Recursively delete physical files and database records of a file or folder and all descendants
+     */
     protected function forceDeleteRecursive($file)
     {
         if ($file->is_folder) {
@@ -764,5 +879,482 @@ class DriveController extends Controller
             }
         }
         $file->forceDelete();
+    }
+
+    /**
+     * Get all shares and settings for a file
+     */
+    public function getShares(Request $request, File $file): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+
+        $shares = $file->shares()->with('sharedWith')->get()->map(function ($share) {
+            return [
+                'id' => $share->id,
+                'user' => [
+                    'id' => $share->sharedWith->id,
+                    'name' => $share->sharedWith->name,
+                    'email' => $share->sharedWith->email,
+                    'avatar_url' => $share->sharedWith->profile_photo_path 
+                        ? Storage::url($share->sharedWith->profile_photo_path) 
+                        : null,
+                ],
+                'permission' => $share->permission,
+            ];
+        });
+
+        $owner = [
+            'id' => $request->user()->id,
+            'name' => $request->user()->name,
+            'email' => $request->user()->email,
+            'avatar_url' => $request->user()->profile_photo_path 
+                ? Storage::url($request->user()->profile_photo_path) 
+                : null,
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'owner' => $owner,
+            'collaborators' => $shares,
+            'public_link' => [
+                'active' => !empty($file->share_token),
+                'share_token' => $file->share_token,
+                'share_url' => $file->share_token ? url('/s/' . $file->share_token) : null,
+                'expires_at' => $file->share_expires_at ? $file->share_expires_at->format('Y-m-d\TH:i') : null,
+                'has_password' => !empty($file->share_password),
+                'allow_download' => (bool)$file->share_allow_download,
+                'allow_import' => (bool)$file->share_allow_import,
+                'allow_direct_access' => (bool)$file->share_allow_direct_access,
+            ]
+        ]);
+    }
+
+    /**
+     * Toggle public link status
+     */
+    public function togglePublicLink(Request $request, File $file): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'active' => 'required|boolean',
+        ]);
+
+        if ($validated['active']) {
+            if (empty($file->share_token)) {
+                $file->share_token = \Illuminate\Support\Str::random(32);
+            }
+        } else {
+            $file->share_token = null;
+        }
+
+        $file->save();
+
+        return response()->json([
+            'status' => 'success',
+            'active' => !empty($file->share_token),
+            'share_token' => $file->share_token,
+            'share_url' => $file->share_token ? url('/s/' . $file->share_token) : null,
+        ]);
+    }
+
+    /**
+     * Update public link settings
+     */
+    public function updatePublicLinkSettings(Request $request, File $file): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'expires_at' => 'nullable|date',
+            'password_enabled' => 'required|boolean',
+            'password' => 'nullable|string|min:4',
+            'allow_download' => 'required|boolean',
+            'allow_import' => 'required|boolean',
+            'allow_direct_access' => 'required|boolean',
+        ]);
+
+        $file->share_expires_at = $validated['expires_at'] ? \Carbon\Carbon::parse($validated['expires_at']) : null;
+        
+        if ($validated['password_enabled']) {
+            if ($request->filled('password')) {
+                $file->share_password = bcrypt($validated['password']);
+            }
+        } else {
+            $file->share_password = null;
+        }
+
+        $file->share_allow_download = $validated['allow_download'];
+        $file->share_allow_import = $validated['allow_import'];
+        $file->share_allow_direct_access = $validated['allow_direct_access'];
+        $file->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Share settings saved successfully.'
+        ]);
+    }
+
+    /**
+     * Update collaborator permission level
+     */
+    public function updateSharePermission(Request $request, File $file, Share $share): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($share->file_id === $file->id, 404);
+
+        $validated = $request->validate([
+            'permission' => 'required|in:view,edit',
+        ]);
+
+        $share->update(['permission' => $validated['permission']]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Permission level updated successfully.'
+        ]);
+    }
+
+    /**
+     * Revoke collaborator user share
+     */
+    public function revokeShare(Request $request, File $file, Share $share): JsonResponse
+    {
+        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($share->file_id === $file->id, 404);
+
+        $share->delete();
+
+        if ($file->shares()->count() === 0) {
+            $file->is_shared = false;
+            $file->save();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Access revoked successfully.'
+        ]);
+    }
+
+    /**
+     * Check public share permissions
+     */
+    private function validatePublicShare(File $file, bool $checkPassword = true)
+    {
+        if (empty($file->share_token)) {
+            abort(404, 'Shared link not found.');
+        }
+
+        if ($file->share_expires_at && now()->greaterThan($file->share_expires_at)) {
+            return 'expired';
+        }
+
+        if ($checkPassword && !empty($file->share_password)) {
+            if (session('shared_auth_' . $file->id) !== true) {
+                return 'password_required';
+            }
+        }
+
+        return 'ok';
+    }
+
+    /**
+     * Show public share interface
+     */
+    public function showPublicShare(Request $request, $token)
+    {
+        $file = File::where('share_token', $token)->first();
+        if (!$file) {
+            // Check if browsing a subfolder
+            $subfolderId = $request->query('folder');
+            if ($subfolderId) {
+                $subfolder = File::find($subfolderId);
+                if ($subfolder) {
+                    // Find the main shared parent folder by walking up the tree
+                    $parent = $this->findSharedParent($subfolder);
+                    if ($parent && $parent->share_token === $token) {
+                        $file = $parent;
+                        $status = $this->validatePublicShare($file);
+                        if ($status === 'expired') {
+                            return view('drive.public-share', ['file' => $file, 'status' => 'expired']);
+                        } elseif ($status === 'password_required') {
+                            return view('drive.public-share', ['file' => $file, 'status' => 'password_required']);
+                        }
+                        
+                        $children = $subfolder->children()->get();
+                        return view('drive.public-share', [
+                            'file' => $file,
+                            'status' => 'ok',
+                            'currentFolder' => $subfolder,
+                            'children' => $children,
+                        ]);
+                    }
+                }
+            }
+            abort(404, 'Shared link not found.');
+        }
+
+        $status = $this->validatePublicShare($file);
+        if ($status === 'expired') {
+            return view('drive.public-share', ['file' => $file, 'status' => 'expired']);
+        } elseif ($status === 'password_required') {
+            return view('drive.public-share', ['file' => $file, 'status' => 'password_required']);
+        }
+
+        if ($file->is_folder) {
+            $children = $file->children()->get();
+            return view('drive.public-share', [
+                'file' => $file,
+                'status' => 'ok',
+                'currentFolder' => $file,
+                'children' => $children,
+            ]);
+        }
+
+        return view('drive.public-share', [
+            'file' => $file,
+            'status' => 'ok',
+        ]);
+    }
+
+    /**
+     * Find shared parent folder by recursively traversing upwards
+     */
+    private function findSharedParent(File $file)
+    {
+        $current = $file;
+        while ($current->parent_id !== null) {
+            $parent = File::find($current->parent_id);
+            if ($parent && !empty($parent->share_token)) {
+                return $parent;
+            }
+            $current = $parent;
+            if (!$current) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Verify public share password
+     */
+    public function verifyPublicSharePassword(Request $request, $token)
+    {
+        $file = File::where('share_token', $token)->firstOrFail();
+        
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        if (\Illuminate\Support\Facades\Hash::check($request->password, $file->share_password)) {
+            session(['shared_auth_' . $file->id => true]);
+            return redirect()->route('drive.public.share', ['token' => $token]);
+        }
+
+        return redirect()->back()->withErrors(['password' => 'Incorrect password. Please try again.']);
+    }
+
+    /**
+     * Download public shared file or folder
+     */
+    public function downloadPublicShare(Request $request, $token)
+    {
+        $file = File::where('share_token', $token)->firstOrFail();
+        $status = $this->validatePublicShare($file);
+        if ($status !== 'ok') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        abort_unless($file->share_allow_download, 403, 'Downloads are not allowed.');
+
+        if ($file->is_folder) {
+            return $this->zipFolder($file);
+        }
+
+        $path = Storage::disk('public')->path($file->storage_path);
+        return response()->download($path, $file->name);
+    }
+
+    /**
+     * Download subfile of shared public folder
+     */
+    public function downloadPublicShareSubfile(Request $request, $token, $subfile)
+    {
+        $parent = File::where('share_token', $token)->firstOrFail();
+        $status = $this->validatePublicShare($parent);
+        if ($status !== 'ok') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        abort_unless($parent->share_allow_download, 403, 'Downloads are not allowed.');
+
+        $file = File::findOrFail($subfile);
+        abort_unless($this->isDescendantOf($file, $parent), 403, 'File is not in the shared folder.');
+
+        if ($file->is_folder) {
+            return $this->zipFolder($file);
+        }
+
+        $path = Storage::disk('public')->path($file->storage_path);
+        return response()->download($path, $file->name);
+    }
+
+    /**
+     * Inline preview subfile of shared public folder
+     */
+    public function inlinePublicShareSubfile(Request $request, $token, $subfile)
+    {
+        $parent = File::where('share_token', $token)->firstOrFail();
+        $status = $this->validatePublicShare($parent);
+        if ($status !== 'ok') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        abort_unless($parent->share_allow_direct_access, 403, 'Direct access is not allowed.');
+
+        $file = File::findOrFail($subfile);
+        abort_unless($this->isDescendantOf($file, $parent), 403, 'File is not in the shared folder.');
+
+        $path = Storage::disk('public')->path($file->storage_path);
+        
+        return response()->file($path, [
+            'Content-Type' => $file->mime_type ?? 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($file->name) . '"'
+        ]);
+    }
+
+    /**
+     * Import public shared folder or file into user's own drive
+     */
+    public function importPublicShare(Request $request, $token)
+    {
+        abort_unless(auth()->check(), 401, 'Please log in to import files.');
+        
+        $file = File::where('share_token', $token)->firstOrFail();
+        $status = $this->validatePublicShare($file);
+        if ($status !== 'ok') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        abort_unless($file->share_allow_import, 403, 'Import is not allowed.');
+
+        $this->cloneFileOrFolder($file, null, auth()->id());
+
+        return redirect()->route('drive.index')->with('success', 'Item imported to your Drive successfully.');
+    }
+
+    /**
+     * Import individual subfile of shared public folder into user's own drive
+     */
+    public function importPublicShareSubfile(Request $request, $token, $subfile)
+    {
+        abort_unless(auth()->check(), 401, 'Please log in to import files.');
+
+        $parent = File::where('share_token', $token)->firstOrFail();
+        $status = $this->validatePublicShare($parent);
+        if ($status !== 'ok') {
+            abort(403, 'Unauthorized access.');
+        }
+
+        abort_unless($parent->share_allow_import, 403, 'Import is not allowed.');
+
+        $file = File::findOrFail($subfile);
+        abort_unless($this->isDescendantOf($file, $parent), 403, 'File is not in the shared folder.');
+
+        $this->cloneFileOrFolder($file, null, auth()->id());
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Item imported to your Drive successfully.'
+        ]);
+    }
+
+    /**
+     * Helper: Check if a file is a descendant of a parent folder
+     */
+    private function isDescendantOf(File $child, File $parent): bool
+    {
+        $current = $child;
+        while ($current->parent_id !== null) {
+            if ($current->parent_id === $parent->id) {
+                return true;
+            }
+            $current = File::find($current->parent_id);
+            if (!$current) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper: Clone a file or folder recursively for a user
+     */
+    private function cloneFileOrFolder(File $item, $newParentId, $userId)
+    {
+        $clone = $item->replicate([
+            'share_token',
+            'share_expires_at',
+            'share_password',
+            'share_allow_download',
+            'share_allow_import',
+            'share_allow_direct_access',
+            'is_shared',
+        ]);
+        $clone->created_by = $userId;
+        $clone->parent_id = $newParentId;
+        
+        if (!$item->is_folder) {
+            $clone->storage_path = $item->storage_path;
+        }
+        
+        $clone->save();
+        
+        if ($item->is_folder) {
+            foreach ($item->children()->get() as $child) {
+                $this->cloneFileOrFolder($child, $clone->id, $userId);
+            }
+        }
+        
+        return $clone;
+    }
+
+    /**
+     * Helper: Zip a folder and all descendants
+     */
+    private function zipFolder(File $folder)
+    {
+        $zip = new \ZipArchive();
+        $zipName = tempnam(sys_get_temp_dir(), 'zip') . '.zip';
+        
+        if ($zip->open($zipName, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+            $this->addFolderToZip($folder, $zip, '');
+            $zip->close();
+            
+            return response()->download($zipName, $folder->name . '.zip')->deleteFileAfterSend(true);
+        }
+        
+        abort(500, 'Could not create zip file.');
+    }
+
+    /**
+     * Helper: Recursively add files to zip archive
+     */
+    private function addFolderToZip(File $folder, \ZipArchive $zip, string $localPath)
+    {
+        $children = $folder->children()->get();
+        foreach ($children as $child) {
+            $currentLocalPath = $localPath === '' ? $child->name : $localPath . '/' . $child->name;
+            if ($child->is_folder) {
+                $zip->addEmptyDir($currentLocalPath);
+                $this->addFolderToZip($child, $zip, $currentLocalPath);
+            } else {
+                $filePath = Storage::disk('public')->path($child->storage_path);
+                if (file_exists($filePath)) {
+                    $zip->addFile($filePath, $currentLocalPath);
+                }
+            }
+        }
     }
 }

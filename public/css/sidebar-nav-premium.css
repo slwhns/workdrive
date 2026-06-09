@@ -40,16 +40,17 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #e3e3e3;
     font-weight: 600;
-    padding: 8px 16px;
-    border-radius: 24px;
+    padding: 6px 12px;
+    border-radius: 20px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     justify-content: center;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    width: calc(100% - 24px);
+    width: calc(100% - 40px);
     margin: 10px auto;
+    font-size: 13px;
 }
 
 .app-sidebar .app-new-trigger .app-nav-icon {
@@ -59,8 +60,8 @@
 }
 
 .app-sidebar .app-new-trigger .google-plus-svg {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -77,10 +78,10 @@
 
 /* Make sure the button remains visually prominent when sidebar is collapsed */
 .app-sidebar:not(:hover) .app-new-trigger {
-    padding: 10px !important;
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
+    padding: 8px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
     border-radius: 50% !important;
     justify-content: center !important;
     margin-left: auto !important;

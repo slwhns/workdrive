@@ -17,6 +17,15 @@ Route::middleware('guest')->group(function () {
 Route::get('/office/download/{file}', [OnlyOfficeController::class, 'download'])->name('onlyoffice.download');
 Route::post('/office/callback', [OnlyOfficeController::class, 'callback'])->name('onlyoffice.callback');
 
+// Public Share routes
+Route::get('/s/{token}', [DriveController::class, 'showPublicShare'])->name('drive.public.share');
+Route::post('/s/{token}/password', [DriveController::class, 'verifyPublicSharePassword'])->name('drive.public.share.password');
+Route::get('/s/{token}/download', [DriveController::class, 'downloadPublicShare'])->name('drive.public.share.download');
+Route::get('/s/{token}/file/{subfile}/download', [DriveController::class, 'downloadPublicShareSubfile'])->name('drive.public.share.subfile.download');
+Route::get('/s/{token}/file/{subfile}/inline', [DriveController::class, 'inlinePublicShareSubfile'])->name('drive.public.share.subfile.inline');
+Route::post('/s/{token}/import', [DriveController::class, 'importPublicShare'])->name('drive.public.share.import');
+Route::post('/s/{token}/file/{subfile}/import', [DriveController::class, 'importPublicShareSubfile'])->name('drive.public.share.subfile.import');
+
 // Authenticated routes - Drive
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DriveController::class, 'index'])->name('drive.index');
@@ -48,6 +57,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/drive/files/{file}/download', [DriveController::class, 'download'])->name('drive.files.download');
     Route::get('/drive/files/{file}/inline', [DriveController::class, 'inline'])->name('drive.files.inline');
     Route::post('/drive/files/{file}/share', [DriveController::class, 'share'])->name('drive.files.share');
+    Route::get('/drive/files/{file}/shares', [DriveController::class, 'getShares'])->name('drive.shares.get');
+    Route::post('/drive/files/{file}/public-link', [DriveController::class, 'togglePublicLink'])->name('drive.shares.public-link');
+    Route::put('/drive/files/{file}/public-link-settings', [DriveController::class, 'updatePublicLinkSettings'])->name('drive.shares.public-link-settings');
+    Route::put('/drive/files/{file}/shares/{share}', [DriveController::class, 'updateSharePermission'])->name('drive.shares.update');
+    Route::delete('/drive/files/{file}/shares/{share}', [DriveController::class, 'revokeShare'])->name('drive.shares.revoke');
+    Route::get('/tags/{tag}', [DriveController::class, 'tag'])->name('drive.tag');
+    Route::get('/drive/tags-list', [DriveController::class, 'allTags'])->name('drive.tags.all');
+    Route::post('/drive/files/{file}/tags', [DriveController::class, 'updateTags'])->name('drive.files.tags.update');
     
     // File Preview routes
     Route::get('/preview/{file}', [FilePreviewController::class, 'show'])->name('preview.show');

@@ -34,7 +34,7 @@
 <div class="d-flex app-shell">
     <div class="app-sidebar">
         <div class="app-sidebar-inner">
-            <div class="app-brand-wrap mg-b-10" style="margin-bottom: 32px;">
+            <div class="app-brand-wrap mg-b-10" style="margin-bottom: 12px;">
                 <div class="app-brand">
                     <img 
                         src="{{ asset('images/workdrive.svg') }}" 
@@ -44,7 +44,7 @@
                 </div>
             </div>
 
-            <div class="app-new-wrap mg-b-10">
+            <div class="app-new-wrap">
                 <button type="button" class="nav-btn app-new-trigger cursor-pointer" id="app-new-trigger" aria-haspopup="true" aria-expanded="false">
                     <span class="app-nav-icon">
                         <svg viewBox="0 0 36 36" width="36" height="36" class="google-plus-svg">
@@ -116,12 +116,12 @@
                 </div>
             </div>
 
-            <div class="app-nav-group-label">
+            <div class="app-nav-group-label" style="margin-top: 5px; margin-bottom: 2px;">
                 <span class="app-nav-group-label-short">Main</span>
                 <span class="app-nav-group-label-full">Main</span>
             </div>
 
-            <a href="{{ route('drive.index') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.index', 'drive.list') ? 'app-nav-active' : '' }}">
+            <a href="{{ route('drive.index') }}" class="nav-btn pd-6 br-5 mg-b-4 txt-none cursor-pointer {{ request()->routeIs('drive.index', 'drive.list') ? 'app-nav-active' : '' }}">
                 <span class="app-nav-icon"><i class="ri-home-2-line"></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Home</span>
@@ -129,12 +129,12 @@
                 </span>
             </a>
 
-            <div class="app-nav-group-label">
+            <div class="app-nav-group-label" style="margin-top: 5px; margin-bottom: 2px;">
                 <span class="app-nav-group-label-short">Man.</span>
                 <span class="app-nav-group-label-full">Management</span>
             </div>
 
-            <a href="{{ route('drive.shared') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.shared') ? 'app-nav-active' : '' }}">
+            <a href="{{ route('drive.shared') }}" class="nav-btn pd-6 br-5 mg-b-4 txt-none cursor-pointer {{ request()->routeIs('drive.shared') ? 'app-nav-active' : '' }}">
                 <span class="app-nav-icon"><i class="ri-share-forward-line"></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Share</span>
@@ -142,7 +142,7 @@
                 </span>
             </a>
 
-            <a href="{{ route('drive.recents') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.recents') ? 'app-nav-active' : '' }}">
+            <a href="{{ route('drive.recents') }}" class="nav-btn pd-6 br-5 mg-b-4 txt-none cursor-pointer {{ request()->routeIs('drive.recents') ? 'app-nav-active' : '' }}">
                 <span class="app-nav-icon"><i class="ri-history-line"></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Recents</span>
@@ -150,7 +150,7 @@
                 </span>
             </a>
 
-            <a href="{{ route('drive.starred') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.starred') ? 'app-nav-active' : '' }}">
+            <a href="{{ route('drive.starred') }}" class="nav-btn pd-6 br-5 mg-b-4 txt-none cursor-pointer {{ request()->routeIs('drive.starred') ? 'app-nav-active' : '' }}">
                 <span class="app-nav-icon"><i class="ri-star-line"></i></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Starred</span>
@@ -158,13 +158,77 @@
                 </span>
             </a>
 
-            <a href="{{ route('drive.trash') }}" class="nav-btn pd-10 br-5 mg-b-10 txt-none cursor-pointer {{ request()->routeIs('drive.trash') ? 'app-nav-active' : '' }}">
+            <a href="{{ route('drive.trash') }}" class="nav-btn pd-6 br-5 mg-b-4 txt-none cursor-pointer {{ request()->routeIs('drive.trash') ? 'app-nav-active' : '' }}">
                 <span class="app-nav-icon"><i class="ri-delete-bin-6-line"></i></span>
                 <span class="app-nav-text">
                     <span class="app-nav-text-short">Trash</span>
                     <span class="app-nav-text-full">Trash</span>
                 </span>
             </a>
+
+            <div class="app-nav-group-label" style="margin-top: 5px; margin-bottom: 2px;">
+                <span class="app-nav-group-label-short">Tags</span>
+                <span class="app-nav-group-label-full">Tags</span>
+            </div>
+
+            <div class="sidebar-tags-wrap" style="display: flex; flex-direction: column; gap: 1px;">
+                <a href="{{ route('drive.tag', ['tag' => 'Red']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Red" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-red"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Red</span>
+                        <span class="app-nav-text-full">Red</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Orange']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Orange" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-orange"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Orange</span>
+                        <span class="app-nav-text-full">Orange</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Yellow']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Yellow" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-yellow"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Yellow</span>
+                        <span class="app-nav-text-full">Yellow</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Green']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Green" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-green"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Green</span>
+                        <span class="app-nav-text-full">Green</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Blue']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Blue" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-blue"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Blue</span>
+                        <span class="app-nav-text-full">Blue</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Purple']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Purple" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-purple"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Purple</span>
+                        <span class="app-nav-text-full">Purple</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'Grey']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="Grey" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><span class="tag-dot tag-dot-grey"></span></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">Grey</span>
+                        <span class="app-nav-text-full">Grey</span>
+                    </span>
+                </a>
+                <a href="{{ route('drive.tag', ['tag' => 'all']) }}" class="nav-btn pd-5 br-5 txt-none cursor-pointer sidebar-tag-link" data-tag="all" style="margin-bottom: 1px;">
+                    <span class="app-nav-icon"><i class="ri-price-tag-3-line"></i></span>
+                    <span class="app-nav-text">
+                        <span class="app-nav-text-short">All Tags</span>
+                        <span class="app-nav-text-full">All Tags...</span>
+                    </span>
+                </a>
+            </div>
 
             <hr class="sidebar-divider">
         </div>
