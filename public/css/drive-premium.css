@@ -1249,11 +1249,9 @@ body.light-theme .file-card-header .drive-card-icon {
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     position: relative;
-    height: 120px;
+    height: 100px;
 }
 
 body.light-theme .file-card-preview-area {
@@ -1282,185 +1280,220 @@ body.light-theme .file-card-preview-area {
     transform: scale(1.05);
 }
 
-/* Document Simulations */
-.preview-doc-sim, .preview-sheet-sim, .preview-slide-sim, .preview-code-sim, .preview-other-sim {
+/* Document Simulations Fallbacks */
+.thumbnail-fallback {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-    box-sizing: border-box;
-    overflow: hidden;
+    background: rgba(0, 0, 0, 0.12);
 }
 
+.preview-doc-sim, .preview-other-sim {
+    width: 68px !important;
+    height: 82px !important;
+    background: #ffffff !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+.preview-sheet-sim {
+    width: 82px !important;
+    height: 82px !important;
+    background: #ffffff !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+.preview-slide-sim {
+    width: 82px !important;
+    height: 62px !important;
+    background: #ffffff !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 6px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+.preview-code-sim {
+    width: 82px !important;
+    height: 82px !important;
+    background: #1e1e24 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+/* Simulation Header */
 .sim-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 9px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.35);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    padding-bottom: 4px;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 7.5px !important;
+    font-weight: 700 !important;
+    color: #555555 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+    margin-bottom: 6px !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+    padding-bottom: 3px !important;
+    width: 100% !important;
 }
 
-body.light-theme .sim-header {
-    color: rgba(0, 0, 0, 0.45);
-    border-bottom-color: rgba(0, 0, 0, 0.05);
+.preview-code-sim .sim-header {
+    color: rgba(255, 255, 255, 0.45) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 .sim-header i {
-    font-size: 11px;
+    font-size: 9.5px !important;
 }
 
-.pdf-sim .sim-header i { color: var(--color-pdf); }
-.word-sim .sim-header i { color: var(--color-doc); }
-.preview-sheet-sim .sim-header i { color: var(--color-sheet); }
-.preview-slide-sim .sim-header i { color: var(--color-slide); }
-.preview-code-sim .sim-header i { color: var(--accent-orange); }
+.pdf-sim .sim-header i { color: var(--color-pdf) !important; }
+.word-sim .sim-header i { color: var(--color-doc) !important; }
+.preview-sheet-sim .sim-header i { color: var(--color-sheet) !important; }
+.preview-slide-sim .sim-header i { color: var(--color-slide) !important; }
+.preview-code-sim .sim-header i { color: var(--accent-orange) !important; }
 
+/* Simulation Body */
 .sim-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    width: 100%;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
 }
 
+/* Simulation Lines */
 .sim-line {
-    height: 5px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 3px;
-    width: 100%;
+    height: 4px !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+    border-radius: 2px !important;
+    width: 100% !important;
 }
 
-body.light-theme .sim-line {
-    background: rgba(0, 0, 0, 0.08);
+.preview-code-sim .sim-line {
+    background: rgba(255, 255, 255, 0.06) !important;
 }
 
 .sim-line.sim-title {
-    height: 7px;
-    width: 60%;
-    background: rgba(255, 255, 255, 0.12);
-    margin-bottom: 2px;
+    height: 5px !important;
+    width: 65% !important;
+    background: rgba(0, 0, 0, 0.15) !important;
+    margin-bottom: 2px !important;
 }
 
-body.light-theme .sim-line.sim-title {
-    background: rgba(0, 0, 0, 0.16);
+.preview-code-sim .sim-line.sim-title {
+    background: rgba(255, 255, 255, 0.15) !important;
 }
 
 .sim-line.short {
-    width: 40%;
+    width: 45% !important;
 }
 
 .sim-block {
-    height: 24px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 4px;
-    width: 100%;
-    margin-top: 4px;
-}
-
-body.light-theme .sim-block {
-    background: rgba(0, 0, 0, 0.06);
+    height: 18px !important;
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-radius: 3px !important;
+    width: 100% !important;
+    margin-top: 2px !important;
 }
 
 /* Spreadsheet simulation */
 .sim-sheet-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    width: 100%;
-    height: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 3px !important;
+    width: 100% !important;
 }
 
 .sim-cell {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 2px;
-    height: 14px;
-}
-
-body.light-theme .sim-cell {
-    background: rgba(0, 0, 0, 0.02);
-    border-color: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.02) !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    border-radius: 1px !important;
+    height: 10px !important;
 }
 
 .sim-cell.header {
-    background: rgba(16, 124, 65, 0.15);
-    border-color: rgba(16, 124, 65, 0.2);
+    background: rgba(16, 124, 65, 0.12) !important;
+    border-color: rgba(16, 124, 65, 0.18) !important;
 }
 
 .sim-cell.highlight {
-    background: rgba(16, 124, 65, 0.3);
-    border-color: rgba(16, 124, 65, 0.4);
+    background: rgba(16, 124, 65, 0.22) !important;
+    border-color: rgba(16, 124, 65, 0.32) !important;
 }
 
 /* PowerPoint simulation */
 .sim-slide-canvas {
-    background: #252830;
-    border-radius: 4px;
-    height: 100%;
-    width: 100%;
-    padding: 8px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    position: relative;
-}
-
-body.light-theme .sim-slide-canvas {
-    background: #f0f0f4;
-    border-color: rgba(0, 0, 0, 0.06);
+    background: #f4f5f7 !important;
+    border-radius: 3px !important;
+    flex-grow: 1 !important;
+    width: 100% !important;
+    padding: 4px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    position: relative !important;
 }
 
 .sim-slide-title {
-    font-size: 8px;
-    font-weight: 800;
-    color: var(--color-slide);
-    margin-bottom: 2px;
-    letter-spacing: 0.5px;
+    font-size: 6px !important;
+    font-weight: 800 !important;
+    color: var(--color-slide) !important;
+    margin-bottom: 1px !important;
+    letter-spacing: 0.2px !important;
+    line-height: 1 !important;
 }
 
 .sim-slide-subtitle {
-    font-size: 6px;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-body.light-theme .sim-slide-subtitle {
-    color: rgba(0, 0, 0, 0.5);
+    font-size: 4.5px !important;
+    color: rgba(0, 0, 0, 0.45) !important;
+    line-height: 1 !important;
 }
 
 .sim-slide-shape {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    width: 16px;
-    height: 16px;
-    background: rgba(216, 59, 1, 0.2);
-    border-radius: 50%;
+    position: absolute !important;
+    bottom: 4px !important;
+    right: 4px !important;
+    width: 10px !important;
+    height: 10px !important;
+    background: rgba(216, 59, 1, 0.2) !important;
+    border-radius: 50% !important;
 }
 
-/* Code Simulation */
+/* Code Simulation styling */
 .sim-code-lines {
-    font-family: 'Fira Code', 'Courier New', Courier, monospace;
-    font-size: 7.5px;
-    line-height: 1.5;
-    color: rgba(255, 255, 255, 0.5);
-    text-align: left;
-}
-
-body.light-theme .sim-code-lines {
-    color: rgba(0, 0, 0, 0.7);
+    font-family: 'Fira Code', 'Courier New', Courier, monospace !important;
+    font-size: 6px !important;
+    line-height: 1.4 !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+    text-align: left !important;
 }
 
 .code-ln {
-    color: rgba(255, 255, 255, 0.2);
-    margin-right: 4px;
+    color: rgba(255, 255, 255, 0.18) !important;
+    margin-right: 3px !important;
 }
 
 body.light-theme .code-ln {

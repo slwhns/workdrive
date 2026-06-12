@@ -710,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const mockHtml = getMockPreviewHtml(ext, typeInfo, item);
             return `
                 <div class="preview-thumbnail-wrapper" style="width:100%; height:100%; position:relative;">
-                    <img src="/drive/files/${item.id}/thumbnail" alt="${escapeHtml(item.name)}" loading="lazy" class="real-thumbnail" style="width:100%; height:100%; object-fit:cover; object-position:top; position:absolute; top:0; left:0; z-index:2; background:#ffffff;" onerror="this.style.display='none';">
+                    <img src="/drive/files/${item.id}/thumbnail" alt="${escapeHtml(item.name)}" loading="eager" class="real-thumbnail" style="width:100%; height:100%; object-fit:cover; object-position:top; position:absolute; top:0; left:0; z-index:2; background:#ffffff; display:none;" onload="this.style.display='block';">
                     <div class="thumbnail-fallback" style="width:100%; height:100%; position:absolute; top:0; left:0; z-index:1;">
                         ${mockHtml}
                     </div>
