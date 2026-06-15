@@ -129,25 +129,16 @@ class FilePreviewController extends Controller
         return [$prevId, $nextId];
     }
 
+
     /**
      * Check if user can view the file
      */
     private function canViewFile(File $file): bool
     {
         $user = auth()->user();
-        
         if (!$user) {
             return false;
         }
-
-        // Owner can always view
-        if ($file->created_by === $user->id) {
-            return true;
-        }
-
-        // Check if file is shared with user
-        return $file->shares()
-            ->where('shared_with', $user->id)
-            ->exists();
+        return app(\App\Http\Controllers\Drive\DriveController::class)->hasAccess($file, $user);
     }
 }

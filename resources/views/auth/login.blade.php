@@ -121,6 +121,29 @@
                     <div style="font-size: 13px; color: #999999; text-align: center;">
                         Need access? <span style="color: #c84a00; font-weight: 600; cursor: pointer;">Contact your administrator</span>
                     </div>
+
+                    <!-- Seeded Demo Accounts Card -->
+                    <div style="margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px; width: 100%;">
+                        <div style="font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; margin-bottom: 10px; text-align: center;">Demo Accounts (Password: password)</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                            <div style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; cursor: pointer;" class="demo-acc-card" data-email="superadmin@example.com">
+                                <strong style="color: #c84a00;">Super Admin</strong>
+                                <div style="color: #555;">superadmin@example.com</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; cursor: pointer;" class="demo-acc-card" data-email="admin@example.com">
+                                <strong style="color: #c84a00;">Admin User</strong>
+                                <div style="color: #555;">admin@example.com</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; cursor: pointer;" class="demo-acc-card" data-email="user1@example.com">
+                                <strong style="color: #c84a00;">Google User 1</strong>
+                                <div style="color: #555;">user1@example.com</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; cursor: pointer;" class="demo-acc-card" data-email="user3@example.com">
+                                <strong style="color: #c84a00;">Apple User 1</strong>
+                                <div style="color: #555;">user3@example.com</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 </div>
             </div>
@@ -138,6 +161,13 @@
                 passwordInput.type = 'password';
                 icon.className = 'ri-eye-line';
             }
+        });
+
+        document.querySelectorAll('.demo-acc-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.getElementById('email').value = this.getAttribute('data-email');
+                document.getElementById('password').value = 'password';
+            });
         });
     </script>
     <script src="{{ asset('js/auth-login.js') }}"></script>

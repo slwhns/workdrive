@@ -2211,3 +2211,116 @@ body.light-theme .settings-input-container {
 body.light-theme .settings-note {
     color: rgba(0, 0, 0, 0.4);
 }
+
+/* Custom Drive Scope Selector Dropdown */
+.header-drive-selector {
+    position: relative;
+    margin-right: 15px;
+}
+
+.drive-select-trigger {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: var(--white3);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.drive-select-trigger:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--white5);
+}
+
+body.light-theme .drive-select-trigger {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #444;
+}
+
+body.light-theme .drive-select-trigger:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #111;
+}
+
+.drive-select-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: rgba(30, 34, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    padding: 6px;
+    width: 160px;
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    backdrop-filter: blur(15px);
+    transform: scale(0.95);
+    opacity: 0;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+    transform-origin: top right;
+}
+
+.drive-select-menu.active {
+    display: flex;
+    transform: scale(1);
+    opacity: 1;
+}
+
+body.light-theme .drive-select-menu {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.drive-select-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    width: 100%;
+}
+
+.drive-select-option:hover {
+    background: rgba(255, 91, 4, 0.1);
+    color: var(--accent-orange);
+}
+
+body.light-theme .drive-select-option {
+    color: #444;
+}
+
+body.light-theme .drive-select-option:hover {
+    background: rgba(245, 75, 13, 0.08);
+    color: var(--accent-orange);
+}
+
+.drive-select-option.active {
+    background: rgba(255, 91, 4, 0.15);
+    color: var(--accent-orange);
+    font-weight: 700;
+}
+
+body.light-theme .drive-select-option.active {
+    background: rgba(245, 75, 13, 0.12);
+}

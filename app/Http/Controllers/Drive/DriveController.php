@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Drive;
 
 use App\Http\Controllers\Controller;
 use App\Models\File;
+use App\Models\Project;
+use App\Models\Share;
+use App\Models\User;
 use App\Services\Drive\FileService;
 use App\Services\Drive\FolderService;
 use Illuminate\Http\RedirectResponse;
@@ -11,9 +14,153 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class DriveController extends Controller
 {
+    /**
+     * Helper to apply scope constraints to queries
+     */
+    private function applyScopeConstraints($query, User $user, string $driveScope)
+    {
+        if ($driveScope === 'personal') {
+            $query->where('drive_type', 'personal')->where('created_by', $user->id);
+        } else if ($driveScope === 'organization') {
+            $company = $user->company;
+            $query->where('drive_type', 'organization');
+            if (!empty($company)) {
+                $query->whereIn('created_by', function($q) use ($company) {
+                    $q->select('id')->from('users')->where('company', $company);
+                });
+            } else {
+                $query->whereIn('created_by', function($q) {
+                    $q->select('id')->from('users')->whereNull('company')->orWhere('company', '');
+                });
+            }
+        } else if ($driveScope === 'project') {
+            $projectIds = DB::table('project_users')->where('user_id', $user->id)->pluck('project_id');
+            $query->where('drive_type', 'project')->whereIn('project_id', $projectIds);
+        } else if ($driveScope === 'admin') {
+            // Admin can see everything, no constraints
+        }
+        return $query;
+    }
+
+    /**
+     * Check if user has read access to a file/folder
+     */
+    public function hasAccess(File $file, User $user): bool
+    {
+        // Admin / Superadmin bypass
+        if (in_array($user->role, ['superadmin', 'admin'])) {
+            return true;
+        }
+
+        // Personal scope check
+        if ($file->drive_type === 'personal' || empty($file->drive_type)) {
+            if ($file->created_by === $user->id) {
+                return true;
+            }
+            $isShared = Share::where('file_id', $file->id)
+                ->where('shared_with', $user->id)
+                ->exists();
+            if ($isShared) {
+                return true;
+            }
+            // Walk up to check if any parent is owned or shared
+            $parent = $file->parent;
+            while ($parent) {
+                if ($parent->created_by === $user->id) {
+                    return true;
+                }
+                if (Share::where('file_id', $parent->id)->where('shared_with', $user->id)->exists()) {
+                    return true;
+                }
+                $parent = $parent->parent;
+            }
+            return false;
+        }
+
+        // Organization scope check
+        if ($file->drive_type === 'organization') {
+            $creator = $file->creator;
+            if ($creator) {
+                if (!empty($user->company) && $user->company === $creator->company) {
+                    return true;
+                }
+                if (empty($user->company) && empty($creator->company)) {
+                    return true;
+                }
+            }
+            return $file->created_by === $user->id;
+        }
+
+        // Project scope check
+        if ($file->drive_type === 'project') {
+            $projectId = $file->project_id;
+            if (empty($projectId)) {
+                $temp = $file;
+                while ($temp && empty($temp->project_id)) {
+                    $temp = $temp->parent;
+                }
+                if ($temp && !empty($temp->project_id)) {
+                    $projectId = $temp->project_id;
+                }
+            }
+            if (!empty($projectId)) {
+                return DB::table('project_users')
+                    ->where('project_id', $projectId)
+                    ->where('user_id', $user->id)
+                    ->exists();
+            }
+            return $file->created_by === $user->id;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user can manage (write/delete/share) a file/folder
+     */
+    public function canManageFile(File $file, User $user): bool
+    {
+        // Admin / Superadmin bypass
+        if (in_array($user->role, ['superadmin', 'admin'])) {
+            return true;
+        }
+
+        // Creator can always manage
+        if ($file->created_by === $user->id) {
+            return true;
+        }
+
+        // Project Manager check
+        if ($file->drive_type === 'project') {
+            $projectId = $file->project_id;
+            if (empty($projectId)) {
+                $temp = $file;
+                while ($temp && empty($temp->project_id)) {
+                    $temp = $temp->parent;
+                }
+                if ($temp && !empty($temp->project_id)) {
+                    $projectId = $temp->project_id;
+                }
+            }
+            if (!empty($projectId)) {
+                return DB::table('project_users')
+                    ->where('project_id', $projectId)
+                    ->where('user_id', $user->id)
+                    ->where('role', 'manager')
+                    ->exists();
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Show the main drive/my files view (SPA index)
      */
@@ -21,39 +168,34 @@ class DriveController extends Controller
     {
         $user = $request->user();
         $parentId = $request->query('folder_id');
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
+
+        if (!in_array($driveScope, ['personal', 'organization', 'project', 'admin'])) {
+            $driveScope = 'personal';
+        }
+
+        // Restrict admin scope
+        if ($driveScope === 'admin' && !in_array($user->role, ['admin', 'superadmin'])) {
+            $driveScope = 'personal';
+        }
+
+        session(['drive_scope' => $driveScope]);
         
         $currentFolder = null;
         $breadcrumbs = [];
         if ($parentId) {
             $currentFolder = File::where('id', $parentId)
                 ->where('is_folder', true)
+                ->when($driveScope === 'project', function($q) {
+                    $q->with('project.members');
+                })
                 ->first();
                 
             if ($currentFolder) {
                 $currentFolder->update(['accessed_at' => now()]);
-                // Access check: must be owner OR shared in shares table, or inside a shared folder
-                $isOwner = $currentFolder->created_by === $user->id;
-                $isShared = \App\Models\Share::where('file_id', $parentId)
-                    ->where('shared_with', $user->id)
-                    ->exists();
                 
-                if (!$isOwner && !$isShared) {
-                    $hasSharedParent = false;
-                    $temp = $currentFolder->parent;
-                    while ($temp) {
-                        if ($temp->created_by === $user->id) {
-                            $hasSharedParent = true;
-                            break;
-                        }
-                        if (\App\Models\Share::where('file_id', $temp->id)->where('shared_with', $user->id)->exists()) {
-                            $hasSharedParent = true;
-                            break;
-                        }
-                        $temp = $temp->parent;
-                    }
-                    if (!$hasSharedParent) {
-                        abort(403, 'Unauthorized action.');
-                    }
+                if (!$this->hasAccess($currentFolder, $user)) {
+                    abort(403, 'Unauthorized action.');
                 }
                 
                 $breadcrumbs = $folderService->getFolderPath($currentFolder);
@@ -66,8 +208,48 @@ class DriveController extends Controller
             $folders = File::where('parent_id', $parentId)->where('is_folder', true)->get();
             $files = File::where('parent_id', $parentId)->where('is_folder', false)->get();
         } else {
-            $folders = $fileService->getUserFolders($user, null);
-            $files = $fileService->getUserFiles($user, null);
+            // Root level filtering based on drive scope
+            if ($driveScope === 'personal') {
+                $folders = File::where('drive_type', 'personal')
+                    ->where('created_by', $user->id)
+                    ->whereNull('parent_id')
+                    ->where('is_folder', true)
+                    ->get();
+                $files = File::where('drive_type', 'personal')
+                    ->where('created_by', $user->id)
+                    ->whereNull('parent_id')
+                    ->where('is_folder', false)
+                    ->get();
+            } else if ($driveScope === 'organization') {
+                $company = $user->company;
+                $query = File::where('drive_type', 'organization')
+                    ->whereNull('parent_id');
+                
+                if (!empty($company)) {
+                    $query->whereIn('created_by', function($q) use ($company) {
+                        $q->select('id')->from('users')->where('company', $company);
+                    });
+                } else {
+                    $query->whereIn('created_by', function($q) {
+                        $q->select('id')->from('users')->whereNull('company')->orWhere('company', '');
+                    });
+                }
+                
+                $folders = (clone $query)->where('is_folder', true)->get();
+                $files = (clone $query)->where('is_folder', false)->get();
+            } else if ($driveScope === 'project') {
+                $projectIds = DB::table('project_users')->where('user_id', $user->id)->pluck('project_id');
+                
+                $folders = File::where('drive_type', 'project')
+                    ->whereNull('parent_id')
+                    ->whereIn('project_id', $projectIds)
+                    ->with('project.members')
+                    ->get();
+                $files = collect(); // no root level files in project scope
+            } else if ($driveScope === 'admin') {
+                $folders = File::whereNull('parent_id')->where('is_folder', true)->get();
+                $files = File::whereNull('parent_id')->where('is_folder', false)->get();
+            }
         }
         
         if ($request->wantsJson() || $request->query('json')) {
@@ -76,7 +258,8 @@ class DriveController extends Controller
                 'folders' => $folders,
                 'files' => $files,
                 'breadcrumbs' => $breadcrumbs,
-                'currentFolder' => $currentFolder
+                'currentFolder' => $currentFolder,
+                'drive_scope' => $driveScope
             ]);
         }
         
@@ -90,7 +273,7 @@ class DriveController extends Controller
     {
         $user = $request->user();
         
-        $shares = \App\Models\Share::where('shared_with', $user->id)
+        $shares = Share::where('shared_with', $user->id)
             ->with(['file.creator'])
             ->get();
             
@@ -122,18 +305,18 @@ class DriveController extends Controller
     public function trash(Request $request)
     {
         $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
         $this->purgeExpiredTrash($user->id);
         
-        $files = File::onlyTrashed()
-            ->where('created_by', $user->id)
-            ->where('is_folder', false)
-            ->get();
-            
-        $folders = File::onlyTrashed()
-            ->where('created_by', $user->id)
-            ->where('is_folder', true)
-            ->get();
+        $queryFolders = File::onlyTrashed()->where('is_folder', true);
+        $queryFiles = File::onlyTrashed()->where('is_folder', false);
+
+        $this->applyScopeConstraints($queryFolders, $user, $driveScope);
+        $this->applyScopeConstraints($queryFiles, $user, $driveScope);
+
+        $folders = $queryFolders->get();
+        $files = $queryFiles->get();
             
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
@@ -152,21 +335,21 @@ class DriveController extends Controller
     public function search(Request $request)
     {
         $user = $request->user();
-        $query = $request->query('q');
+        $queryStr = $request->query('q');
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
-        if (empty($query)) {
+        if (empty($queryStr)) {
             $files = collect();
             $folders = collect();
         } else {
-            $files = File::where('created_by', $user->id)
-                ->where('is_folder', false)
-                ->where('name', 'like', "%{$query}%")
-                ->get();
-                
-            $folders = File::where('created_by', $user->id)
-                ->where('is_folder', true)
-                ->where('name', 'like', "%{$query}%")
-                ->get();
+            $queryFolders = File::where('is_folder', true)->where('name', 'like', "%{$queryStr}%");
+            $queryFiles = File::where('is_folder', false)->where('name', 'like', "%{$queryStr}%");
+
+            $this->applyScopeConstraints($queryFolders, $user, $driveScope);
+            $this->applyScopeConstraints($queryFiles, $user, $driveScope);
+
+            $folders = $queryFolders->get();
+            $files = $queryFiles->get();
         }
         
         if ($request->wantsJson() || $request->query('json')) {
@@ -174,28 +357,29 @@ class DriveController extends Controller
                 'status' => 'success',
                 'folders' => $folders,
                 'files' => $files,
-                'query' => $query
+                'query' => $queryStr
             ]);
         }
         
-        return view('drive.search', compact('folders', 'files', 'query'));
+        return view('drive.search', compact('folders', 'files', 'queryStr'));
     }
 
+    /**
+     * Show recents view
+     */
     public function recents(Request $request)
     {
         $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
-        $files = File::where('created_by', $user->id)
-            ->where('is_folder', false)
-            ->orderBy('accessed_at', 'desc')
-            ->limit(20)
-            ->get();
-            
-        $folders = File::where('created_by', $user->id)
-            ->where('is_folder', true)
-            ->orderBy('accessed_at', 'desc')
-            ->limit(10)
-            ->get();
+        $queryFolders = File::where('is_folder', true)->orderBy('accessed_at', 'desc')->limit(10);
+        $queryFiles = File::where('is_folder', false)->orderBy('accessed_at', 'desc')->limit(20);
+
+        $this->applyScopeConstraints($queryFolders, $user, $driveScope);
+        $this->applyScopeConstraints($queryFiles, $user, $driveScope);
+
+        $folders = $queryFolders->get();
+        $files = $queryFiles->get();
             
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
@@ -214,16 +398,16 @@ class DriveController extends Controller
     public function starred(Request $request)
     {
         $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
-        $files = File::where('created_by', $user->id)
-            ->where('is_starred', true)
-            ->where('is_folder', false)
-            ->get();
-            
-        $folders = File::where('created_by', $user->id)
-            ->where('is_starred', true)
-            ->where('is_folder', true)
-            ->get();
+        $queryFolders = File::where('is_starred', true)->where('is_folder', true);
+        $queryFiles = File::where('is_starred', true)->where('is_folder', false);
+
+        $this->applyScopeConstraints($queryFolders, $user, $driveScope);
+        $this->applyScopeConstraints($queryFiles, $user, $driveScope);
+
+        $folders = $queryFolders->get();
+        $files = $queryFiles->get();
             
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
@@ -237,7 +421,7 @@ class DriveController extends Controller
     }
 
     /**
-     * Create a new folder from the sidebar menu or SPA modal
+     * Create a new folder
      */
     public function storeFolder(Request $request, FolderService $folderService)
     {
@@ -246,7 +430,51 @@ class DriveController extends Controller
             'parent_id' => ['nullable', 'integer', 'exists:files,id'],
         ]);
 
-        $folder = $folderService->createFolder($request->user(), $validated['name'], $validated['parent_id'] ?? null);
+        $user = $request->user();
+        $parentId = $validated['parent_id'] ?? null;
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
+
+        if ($parentId) {
+            $parent = File::findOrFail($parentId);
+            if (!$this->hasAccess($parent, $user)) {
+                abort(403, 'Unauthorized action.');
+            }
+            $driveType = $parent->drive_type;
+            $projectId = $parent->project_id;
+        } else {
+            // Root level creation
+            if ($driveScope === 'project') {
+                // Create a Project
+                $project = Project::create([
+                    'name' => $validated['name'],
+                    'created_by' => $user->id,
+                ]);
+
+                DB::table('project_users')->insert([
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'role' => 'manager',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $driveType = 'project';
+                $projectId = $project->id;
+            } else {
+                $driveType = ($driveScope === 'admin') ? 'personal' : $driveScope;
+                $projectId = null;
+            }
+        }
+
+        $folder = File::create([
+            'name' => $validated['name'],
+            'type' => 'folder',
+            'is_folder' => true,
+            'parent_id' => $parentId,
+            'created_by' => $user->id,
+            'drive_type' => $driveType,
+            'project_id' => $projectId,
+        ]);
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
@@ -270,17 +498,43 @@ class DriveController extends Controller
             'parent_id' => ['nullable', 'integer', 'exists:files,id'],
         ]);
 
+        $user = $request->user();
+        $parentId = $validated['parent_id'] ?? null;
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
+
+        if ($parentId) {
+            $parent = File::findOrFail($parentId);
+            if (!$this->hasAccess($parent, $user)) {
+                abort(403, 'Unauthorized action.');
+            }
+            $driveType = $parent->drive_type;
+            $projectId = $parent->project_id;
+        } else {
+            if ($driveScope === 'project') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Files cannot be uploaded to the root of the Project Drive. Please create or enter a project folder first.'
+                ], 422);
+            }
+            $driveType = ($driveScope === 'admin') ? 'personal' : $driveScope;
+            $projectId = null;
+        }
+
         $createdFiles = [];
         foreach ($validated['files'] as $uploadedFile) {
             $storagePath = $uploadedFile->store('drive/uploads', 'public');
 
-            $file = $fileService->createFile($request->user(), [
+            $file = File::create([
                 'name' => $uploadedFile->getClientOriginalName(),
                 'path' => $storagePath,
                 'mime_type' => $uploadedFile->getClientMimeType(),
                 'size' => $uploadedFile->getSize(),
                 'storage_path' => $storagePath,
-                'parent_id' => $validated['parent_id'] ?? null,
+                'parent_id' => $parentId,
+                'created_by' => $user->id,
+                'is_folder' => false,
+                'drive_type' => $driveType,
+                'project_id' => $projectId,
             ]);
             $createdFiles[] = $file;
         }
@@ -297,7 +551,7 @@ class DriveController extends Controller
     }
 
     /**
-     * Upload a folder as a collection of files, reconstructing directory tree.
+     * Upload a folder recursively
      */
     public function uploadFolder(Request $request, FileService $fileService)
     {
@@ -309,26 +563,39 @@ class DriveController extends Controller
         ]);
 
         $user = $request->user();
-        $rootParentId = $validated['parent_id'] ?? null;
-        $createdFiles = [];
+        $parentId = $validated['parent_id'] ?? null;
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
 
-        // Key format: parentId_folderPath -> value: folder Database ID
+        if ($parentId) {
+            $parent = File::findOrFail($parentId);
+            if (!$this->hasAccess($parent, $user)) {
+                abort(403, 'Unauthorized action.');
+            }
+            $driveType = $parent->drive_type;
+            $projectId = $parent->project_id;
+        } else {
+            if ($driveScope === 'project') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Folders cannot be uploaded to the root of the Project Drive. Please create or enter a project folder first.'
+                ], 422);
+            }
+            $driveType = ($driveScope === 'admin') ? 'personal' : $driveScope;
+            $projectId = null;
+        }
+
+        $createdFiles = [];
         $folderCache = [];
 
         foreach ($validated['files'] as $index => $uploadedFile) {
             $relativePath = $validated['paths'][$index] ?? $uploadedFile->getClientOriginalName();
-            
-            // Standardize path separators
             $relativePath = str_replace('\\', '/', $relativePath);
             $pathSegments = explode('/', $relativePath);
             
-            // Last segment is the file name
             $fileName = array_pop($pathSegments);
-            
-            $currentParentId = $rootParentId;
+            $currentParentId = $parentId;
             $pathAccumulator = "";
 
-            // Traverse and build dynamic folder structures if not exist
             foreach ($pathSegments as $segment) {
                 if (empty($segment)) continue;
                 
@@ -351,6 +618,8 @@ class DriveController extends Controller
                             'is_folder' => true,
                             'parent_id' => $currentParentId,
                             'created_by' => $user->id,
+                            'drive_type' => $driveType,
+                            'project_id' => $projectId,
                         ]);
                     }
 
@@ -359,16 +628,19 @@ class DriveController extends Controller
                 }
             }
 
-            // Store file under the finalized directory folder ID
             $storagePath = $uploadedFile->store('drive/folders', 'public');
 
-            $file = $fileService->createFile($user, [
+            $file = File::create([
                 'name' => $fileName,
                 'path' => $storagePath,
                 'mime_type' => $uploadedFile->getClientMimeType(),
                 'size' => $uploadedFile->getSize(),
                 'storage_path' => $storagePath,
                 'parent_id' => $currentParentId,
+                'created_by' => $user->id,
+                'is_folder' => false,
+                'drive_type' => $driveType,
+                'project_id' => $projectId,
             ]);
             $createdFiles[] = $file;
         }
@@ -376,7 +648,7 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'status' => 'success',
-                'message' => 'Folder uploaded successfully with matching directory structures.',
+                'message' => 'Folder uploaded successfully.',
                 'files' => $createdFiles
             ]);
         }
@@ -385,7 +657,7 @@ class DriveController extends Controller
     }
 
     /**
-     * Create a blank Office file record for the selected template type.
+     * Create blank office file
      */
     public function createOfficeFile(Request $request, string $kind): RedirectResponse
     {
@@ -408,9 +680,25 @@ class DriveController extends Controller
 
         $template = $templates[$kind];
         $parentId = $request->query('parent_id') ?? null;
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
 
-        $uniqueName = $this->getUniqueFileName($parentId, $userId, $template['name']);
+        if ($parentId) {
+            $parent = File::findOrFail($parentId);
+            if (!$this->hasAccess($parent, $user)) {
+                abort(403, 'Unauthorized action.');
+            }
+            $driveType = $parent->drive_type;
+            $projectId = $parent->project_id;
+        } else {
+            if ($driveScope === 'project') {
+                abort(422, 'Office files cannot be created at the root of the Project Drive.');
+            }
+            $driveType = ($driveScope === 'admin') ? 'personal' : $driveScope;
+            $projectId = null;
+        }
+
+        $uniqueName = $this->getUniqueFileName($parentId, $user->id, $template['name']);
         $storagePath = 'drive/onlyoffice/' . $kind . '/' . uniqid() . '_' . str_replace(' ', '-', strtolower($uniqueName));
 
         Storage::disk('public')->put($storagePath, '');
@@ -422,9 +710,11 @@ class DriveController extends Controller
             'mime_type' => $template['mime'],
             'size' => 0,
             'storage_path' => $storagePath,
-            'created_by' => $userId,
+            'created_by' => $user->id,
             'is_folder' => false,
-            'parent_id' => $parentId
+            'parent_id' => $parentId,
+            'drive_type' => $driveType,
+            'project_id' => $projectId,
         ]);
 
         $redirectUrl = route('drive.index', array_filter([
@@ -440,7 +730,7 @@ class DriveController extends Controller
      */
     public function toggleStar(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $file->is_starred = !$file->is_starred;
         $file->save();
@@ -457,7 +747,7 @@ class DriveController extends Controller
      */
     public function rename(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -468,10 +758,8 @@ class DriveController extends Controller
         if (!$file->is_folder) {
             $originalExt = pathinfo($file->name, PATHINFO_EXTENSION);
             if ($originalExt !== '') {
-                // Check if the new name already ends with the original extension (case-insensitive)
                 $pattern = '/\.' . preg_quote($originalExt, '/') . '$/i';
                 if (!preg_match($pattern, $newName)) {
-                    // If the new name has a different extension, strip it
                     $newExt = pathinfo($newName, PATHINFO_EXTENSION);
                     if ($newExt !== '') {
                         $newName = substr($newName, 0, -(strlen($newExt) + 1));
@@ -483,6 +771,14 @@ class DriveController extends Controller
         
         $file->name = $newName;
         $file->save();
+        
+        // Rename the project title if this was a root project folder
+        if ($file->is_folder && $file->drive_type === 'project' && empty($file->parent_id) && !empty($file->project_id)) {
+            $project = Project::find($file->project_id);
+            if ($project) {
+                $project->update(['name' => $newName]);
+            }
+        }
         
         return response()->json([
             'status' => 'success',
@@ -496,7 +792,7 @@ class DriveController extends Controller
      */
     public function destroy(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $file->delete();
         
@@ -512,7 +808,7 @@ class DriveController extends Controller
     public function restore(Request $request, $id): JsonResponse
     {
         $file = File::withTrashed()->findOrFail($id);
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $file->restore();
         
@@ -528,8 +824,16 @@ class DriveController extends Controller
     public function forceDelete(Request $request, $id): JsonResponse
     {
         $file = File::withTrashed()->findOrFail($id);
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
+        // If it's a project root folder, also delete the project entity!
+        if ($file->is_folder && $file->drive_type === 'project' && empty($file->parent_id) && !empty($file->project_id)) {
+            $project = Project::find($file->project_id);
+            if ($project) {
+                $project->delete();
+            }
+        }
+
         $this->forceDeleteRecursive($file);
         
         return response()->json([
@@ -543,12 +847,7 @@ class DriveController extends Controller
      */
     public function download(Request $request, File $file)
     {
-        $isOwner = $file->created_by === $request->user()->id;
-        $isShared = \App\Models\Share::where('file_id', $file->id)
-            ->where('shared_with', $request->user()->id)
-            ->exists();
-            
-        abort_unless($isOwner || $isShared, 403);
+        abort_unless($this->hasAccess($file, $request->user()), 403);
         abort_if($file->is_folder, 400, 'Cannot download folders directly.');
         
         if (!Storage::disk('public')->exists($file->storage_path)) {
@@ -561,16 +860,11 @@ class DriveController extends Controller
     }
 
     /**
-     * View a file inline in the browser (specifically PDFs)
+     * View a file inline in the browser
      */
     public function inline(Request $request, File $file)
     {
-        $isOwner = $file->created_by === $request->user()->id;
-        $isShared = \App\Models\Share::where('file_id', $file->id)
-            ->where('shared_with', $request->user()->id)
-            ->exists();
-            
-        abort_unless($isOwner || $isShared, 403);
+        abort_unless($this->hasAccess($file, $request->user()), 403);
         abort_if($file->is_folder, 400, 'Cannot view folders inline.');
         
         if (!Storage::disk('public')->exists($file->storage_path)) {
@@ -592,14 +886,14 @@ class DriveController extends Controller
      */
     public function share(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $validated = $request->validate([
             'email' => 'required|email|exists:users,email',
             'permission' => 'required|in:view,edit',
         ]);
         
-        $sharedWithUser = \App\Models\User::where('email', $validated['email'])->firstOrFail();
+        $sharedWithUser = User::where('email', $validated['email'])->firstOrFail();
         
         if ($sharedWithUser->id === $request->user()->id) {
             return response()->json([
@@ -608,7 +902,7 @@ class DriveController extends Controller
             ], 422);
         }
         
-        \App\Models\Share::updateOrCreate([
+        Share::updateOrCreate([
             'file_id' => $file->id,
             'shared_with' => $sharedWithUser->id,
         ], [
@@ -630,9 +924,12 @@ class DriveController extends Controller
      */
     public function allFolders(Request $request): JsonResponse
     {
-        $folders = File::where('created_by', $request->user()->id)
-            ->where('is_folder', true)
-            ->get();
+        $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
+        
+        $query = File::where('is_folder', true);
+        $this->applyScopeConstraints($query, $user, $driveScope);
+        $folders = $query->get();
             
         return response()->json([
             'status' => 'success',
@@ -645,7 +942,7 @@ class DriveController extends Controller
      */
     public function move(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $validated = $request->validate([
             'parent_id' => 'nullable|integer|exists:files,id',
@@ -653,21 +950,24 @@ class DriveController extends Controller
         
         $parentId = $validated['parent_id'];
         
-        // Validation checks
         if ($parentId !== null) {
-            $targetFolder = File::where('id', $parentId)
-                ->where('created_by', $request->user()->id)
-                ->where('is_folder', true)
-                ->first();
+            $targetFolder = File::find($parentId);
                 
-            if (!$targetFolder) {
+            if (!$targetFolder || !$this->hasAccess($targetFolder, $request->user())) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Target folder not found or access denied.'
                 ], 422);
             }
             
-            // Prevent moving a folder into itself
+            // Check that they match scopes
+            if ($file->drive_type !== $targetFolder->drive_type) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot move items between different drive scopes.'
+                ], 422);
+            }
+            
             if ($file->is_folder && $file->id === $parentId) {
                 return response()->json([
                     'status' => 'error',
@@ -675,7 +975,6 @@ class DriveController extends Controller
                 ], 422);
             }
             
-            // Prevent moving a folder into one of its descendants
             if ($file->is_folder) {
                 if ($this->isDescendant($parentId, $file->id)) {
                     return response()->json([
@@ -684,6 +983,17 @@ class DriveController extends Controller
                     ], 422);
                 }
             }
+
+            $file->project_id = $targetFolder->project_id;
+        } else {
+            // Moving to root level of its scope
+            if ($file->drive_type === 'project') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot move items to the root level of the Project Drive.'
+                ], 422);
+            }
+            $file->project_id = null;
         }
         
         $file->parent_id = $parentId;
@@ -749,19 +1059,35 @@ class DriveController extends Controller
     }
 
     /**
-     * Recursively delete physical files and database records of a file or folder and all descendants
+     * Recursively delete physical files and database records
      */
+    protected function forceDeleteRecursive($file)
+    {
+        if ($file->is_folder) {
+            $children = File::withTrashed()->where('parent_id', $file->id)->get();
+            foreach ($children as $child) {
+                $this->forceDeleteRecursive($child);
+            }
+        } else {
+            if ($file->storage_path) {
+                Storage::disk('public')->delete($file->storage_path);
+            }
+        }
+        $file->forceDelete();
+    }
+
     /**
-     * Show items tagged with a specific tag (or all tags view)
+     * Show items tagged with a specific tag
      */
     public function tag(Request $request, string $tag)
     {
         $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
         if ($tag === 'all') {
-            $filesWithTags = File::where('created_by', $user->id)
-                ->whereNotNull('tags')
-                ->get(['tags']);
+            $query = File::query();
+            $this->applyScopeConstraints($query, $user, $driveScope);
+            $filesWithTags = $query->whereNotNull('tags')->get(['tags']);
             
             $tags = [];
             foreach ($filesWithTags as $file) {
@@ -789,15 +1115,20 @@ class DriveController extends Controller
             return view('drive.index', compact('folders', 'files'));
         }
         
-        $query = File::where('created_by', $user->id);
-        
-        $query->where(function($q) use ($tag) {
+        $queryFolders = File::where('is_folder', true)->where(function($q) use ($tag) {
             $q->whereJsonContains('tags', $tag)
               ->orWhere('tags', 'like', '%"' . $tag . '"%');
         });
-        
-        $folders = (clone $query)->where('is_folder', true)->get();
-        $files = (clone $query)->where('is_folder', false)->get();
+        $queryFiles = File::where('is_folder', false)->where(function($q) use ($tag) {
+            $q->whereJsonContains('tags', $tag)
+              ->orWhere('tags', 'like', '%"' . $tag . '"%');
+        });
+
+        $this->applyScopeConstraints($queryFolders, $user, $driveScope);
+        $this->applyScopeConstraints($queryFiles, $user, $driveScope);
+
+        $folders = $queryFolders->get();
+        $files = $queryFiles->get();
         
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
@@ -817,10 +1148,11 @@ class DriveController extends Controller
     public function allTags(Request $request): JsonResponse
     {
         $user = $request->user();
+        $driveScope = $request->query('drive_scope') ?? session('drive_scope', 'personal');
         
-        $filesWithTags = File::where('created_by', $user->id)
-            ->whereNotNull('tags')
-            ->get(['tags']);
+        $query = File::query();
+        $this->applyScopeConstraints($query, $user, $driveScope);
+        $filesWithTags = $query->whereNotNull('tags')->get(['tags']);
         
         $tags = [];
         foreach ($filesWithTags as $file) {
@@ -846,7 +1178,7 @@ class DriveController extends Controller
      */
     public function updateTags(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         
         $validated = $request->validate([
             'tags' => 'nullable|array',
@@ -864,29 +1196,11 @@ class DriveController extends Controller
     }
 
     /**
-     * Recursively delete physical files and database records of a file or folder and all descendants
-     */
-    protected function forceDeleteRecursive($file)
-    {
-        if ($file->is_folder) {
-            $children = File::withTrashed()->where('parent_id', $file->id)->get();
-            foreach ($children as $child) {
-                $this->forceDeleteRecursive($child);
-            }
-        } else {
-            if ($file->storage_path) {
-                Storage::disk('public')->delete($file->storage_path);
-            }
-        }
-        $file->forceDelete();
-    }
-
-    /**
      * Get all shares and settings for a file
      */
     public function getShares(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
 
         $shares = $file->shares()->with('sharedWith')->get()->map(function ($share) {
             return [
@@ -904,11 +1218,11 @@ class DriveController extends Controller
         });
 
         $owner = [
-            'id' => $request->user()->id,
-            'name' => $request->user()->name,
-            'email' => $request->user()->email,
-            'avatar_url' => $request->user()->profile_photo_path 
-                ? Storage::url($request->user()->profile_photo_path) 
+            'id' => $file->creator->id ?? $request->user()->id,
+            'name' => $file->creator->name ?? $request->user()->name,
+            'email' => $file->creator->email ?? $request->user()->email,
+            'avatar_url' => ($file->creator && $file->creator->profile_photo_path) 
+                ? Storage::url($file->creator->profile_photo_path) 
                 : null,
         ];
 
@@ -934,7 +1248,7 @@ class DriveController extends Controller
      */
     public function togglePublicLink(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
 
         $validated = $request->validate([
             'active' => 'required|boolean',
@@ -942,7 +1256,7 @@ class DriveController extends Controller
 
         if ($validated['active']) {
             if (empty($file->share_token)) {
-                $file->share_token = \Illuminate\Support\Str::random(32);
+                $file->share_token = Str::random(32);
             }
         } else {
             $file->share_token = null;
@@ -963,7 +1277,7 @@ class DriveController extends Controller
      */
     public function updatePublicLinkSettings(Request $request, File $file): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
 
         $validated = $request->validate([
             'expires_at' => 'nullable|date',
@@ -1000,7 +1314,7 @@ class DriveController extends Controller
      */
     public function updateSharePermission(Request $request, File $file, Share $share): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         abort_unless($share->file_id === $file->id, 404);
 
         $validated = $request->validate([
@@ -1020,7 +1334,7 @@ class DriveController extends Controller
      */
     public function revokeShare(Request $request, File $file, Share $share): JsonResponse
     {
-        abort_unless($file->created_by === $request->user()->id, 403);
+        abort_unless($this->canManageFile($file, $request->user()), 403);
         abort_unless($share->file_id === $file->id, 404);
 
         $share->delete();
@@ -1065,12 +1379,10 @@ class DriveController extends Controller
     {
         $file = File::where('share_token', $token)->first();
         if (!$file) {
-            // Check if browsing a subfolder
             $subfolderId = $request->query('folder');
             if ($subfolderId) {
                 $subfolder = File::find($subfolderId);
                 if ($subfolder) {
-                    // Find the main shared parent folder by walking up the tree
                     $parent = $this->findSharedParent($subfolder);
                     if ($parent && $parent->share_token === $token) {
                         $file = $parent;
@@ -1147,7 +1459,7 @@ class DriveController extends Controller
             'password' => 'required|string',
         ]);
 
-        if (\Illuminate\Support\Facades\Hash::check($request->password, $file->share_password)) {
+        if (Hash::check($request->password, $file->share_password)) {
             session(['shared_auth_' . $file->id => true]);
             return redirect()->route('drive.public.share', ['token' => $token]);
         }
@@ -1304,6 +1616,8 @@ class DriveController extends Controller
         ]);
         $clone->created_by = $userId;
         $clone->parent_id = $newParentId;
+        $clone->drive_type = 'personal'; // imported files always go to personal drive
+        $clone->project_id = null;
         
         if (!$item->is_folder) {
             $clone->storage_path = $item->storage_path;

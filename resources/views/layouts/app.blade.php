@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="user-id" content="{{ auth()->id() }}">
     <title>WD | @yield('title', 'WorkDrive')</title>
 
     <!-- Favicon -->
@@ -23,7 +24,7 @@
     <link rel="stylesheet" href="{{ asset('css/preview.css') }}?v={{ time() }}">
     @stack('styles')
 </head>
-<body class="bg-white3 app-theme">
+<body class="bg-white3 app-theme" data-user-role="{{ auth()->user()->role ?? 'user' }}">
 @php
     $currentUser = auth()->user();
     $displayName = $currentUser?->name ?? 'User';
@@ -241,16 +242,47 @@
                 <div class="fs-12 header-subtitle">Company Internal Drive</div>
             </div>
 
-            <button type="button" class="header-profile-trigger" id="header-profile-trigger" aria-label="Open profile panel">
-                <div class="fs-13 header-user">{{ strtoupper($displayName) }}</div>
-                <span class="header-profile-avatar">
-                    @if($avatarUrl)
-                        <img src="{{ $avatarUrl }}" alt="{{ $displayName }} avatar" class="header-profile-avatar-image">
-                    @else
-                        {{ $avatarInitial }}
-                    @endif
-                </span>
-            </button>
+            <div class="d-flex ai-center">
+                <!-- Custom Drive Scope Selector Dropdown -->
+                <div class="header-drive-selector dropdown">
+                    <button type="button" class="drive-select-trigger" id="drive-select-trigger" aria-haspopup="true" aria-expanded="false">
+                        <i class="ri-user-line" id="drive-scope-icon"></i>
+                        <span id="selected-drive-type">Personal</span>
+                        <i class="ri-arrow-down-s-line"></i>
+                    </button>
+                    <div class="drive-select-menu" id="drive-select-menu" aria-hidden="true">
+                        <button type="button" class="drive-select-option" data-scope="personal">
+                            <i class="ri-user-line"></i>
+                            <span>Personal</span>
+                        </button>
+                        <button type="button" class="drive-select-option" data-scope="project">
+                            <i class="ri-folder-shared-line"></i>
+                            <span>Team / Project</span>
+                        </button>
+                        <button type="button" class="drive-select-option" data-scope="organization">
+                            <i class="ri-building-line"></i>
+                            <span>Organization</span>
+                        </button>
+                        @if(auth()->user() && (auth()->user()->role === 'superadmin' || auth()->user()->role === 'admin'))
+                            <button type="button" class="drive-select-option" data-scope="admin">
+                                <i class="ri-shield-user-line"></i>
+                                <span>Admin</span>
+                            </button>
+                        @endif
+                    </div>
+                </div>
+
+                <button type="button" class="header-profile-trigger" id="header-profile-trigger" aria-label="Open profile panel">
+                    <div class="fs-13 header-user">{{ strtoupper($displayName) }}</div>
+                    <span class="header-profile-avatar">
+                        @if($avatarUrl)
+                            <img src="{{ $avatarUrl }}" alt="{{ $displayName }} avatar" class="header-profile-avatar-image">
+                        @else
+                            {{ $avatarInitial }}
+                        @endif
+                    </span>
+                </button>
+            </div>
         </div>
 
         <div class="bg-orbs" aria-hidden="true">

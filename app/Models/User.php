@@ -25,6 +25,7 @@ class User extends Authenticatable
         'phone',
         'company',
         'profile_photo_path',
+        'role',
     ];
 
     /**
@@ -48,5 +49,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get user projects
+     */
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_users')
+            ->withPivot('role')
+            ->withTimestamps();
     }
 }

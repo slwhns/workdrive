@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Office\OnlyOfficeController;
 use App\Http\Controllers\Preview\FilePreviewController;
+use App\Http\Controllers\Drive\ProjectController;
 
 // Public routes
 Route::middleware('guest')->group(function () {
@@ -73,6 +74,10 @@ Route::middleware(['auth'])->group(function () {
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    
+    // Project Member operations
+    Route::post('/projects/{project}/members', [ProjectController::class, 'addMember'])->name('projects.members.add');
+    Route::delete('/projects/{project}/members/{user}', [ProjectController::class, 'removeMember'])->name('projects.members.remove');
     
     // Logout
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');

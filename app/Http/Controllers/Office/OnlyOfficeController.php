@@ -15,6 +15,9 @@ class OnlyOfficeController extends Controller
      */
     public function getConfig(File $file)
     {
+        $user = auth()->user();
+        abort_unless(app(\App\Http\Controllers\Drive\DriveController::class)->hasAccess($file, $user), 403);
+
         $file->update(['accessed_at' => now()]);
 
         $jwtSecret = config('onlyoffice.jwt_secret');
@@ -35,7 +38,10 @@ class OnlyOfficeController extends Controller
         if (!in_array($mode, ['edit', 'view'])) {
             $mode = 'edit';
         }
-        $canEdit = ($mode === 'edit');
+        $canEdit = ($mode === 'edit') && app(\App\Http\Controllers\Drive\DriveController::class)->canManageFile($file, $user);
+        if ($mode === 'edit' && !$canEdit) {
+            $mode = 'view';
+        }
 
         $config = [
             'document' => [

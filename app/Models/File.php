@@ -29,6 +29,8 @@ class File extends Model
         'share_allow_download',
         'share_allow_import',
         'share_allow_direct_access',
+        'drive_type',
+        'project_id',
     ];
 
     protected $casts = [
@@ -44,6 +46,7 @@ class File extends Model
         'share_allow_download' => 'boolean',
         'share_allow_import' => 'boolean',
         'share_allow_direct_access' => 'boolean',
+        'project_id' => 'integer',
     ];
 
     protected static function booted()
@@ -69,6 +72,14 @@ class File extends Model
     public function children()
     {
         return $this->hasMany(File::class, 'parent_id');
+    }
+
+    /**
+     * Get project association
+     */
+    public function project()
+    {
+        return $this->belongsTo(Project::class, 'project_id');
     }
 
     /**

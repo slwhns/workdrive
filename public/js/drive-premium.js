@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', function () {
         showAllFolders: false,
         showAllFiles: false,
         listLimit: 10,
-        showAllList: false
+        showAllList: false,
+        currentDriveScope: localStorage.getItem('drive_scope') || 'personal'
     };
 
     // Grab CSRF token
@@ -42,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Create new UI shell items if missing
     ensureAppShellElements();
     
-    const detailsDrawer = document.getElementById('details-drawer');
+    let detailsDrawer = document.getElementById('details-drawer');
     const contextMenu = document.getElementById('context-menu');
     const renameModal = document.getElementById('rename-modal');
     const shareModal = document.getElementById('share-modal');
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function initSPA() {
         // Load initial state based on URL
         parseUrlToState(window.location.href);
+        setupDriveScopeSelector();
         loadCurrentView(false);
 
         // Bind layout sidebar click listeners
@@ -121,6 +123,137 @@ document.addEventListener('DOMContentLoaded', function () {
             state.currentFolderId = null;
             state.currentTag = null;
         }
+    }
+
+    function updateDriveScopeSelectorUI() {
+        const trigger = document.getElementById('drive-select-trigger');
+        const textSpan = document.getElementById('selected-drive-type');
+        const iconI = document.getElementById('drive-scope-icon');
+        
+        if (!textSpan || !iconI) return;
+
+        let label = 'Personal';
+        let iconClass = 'ri-user-line';
+
+        if (state.currentDriveScope === 'project') {
+            label = 'Team / Project';
+            iconClass = 'ri-folder-shared-line';
+        } else if (state.currentDriveScope === 'organization') {
+            label = 'Organization';
+            iconClass = 'ri-building-line';
+        } else if (state.currentDriveScope === 'admin') {
+            label = 'Admin';
+            iconClass = 'ri-shield-user-line';
+        }
+
+        textSpan.textContent = label;
+        iconI.className = iconClass;
+
+        // Set active class in menu
+        document.querySelectorAll('.drive-select-option').forEach(btn => {
+            if (btn.getAttribute('data-scope') === state.currentDriveScope) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    function setupDriveScopeSelector() {
+        const trigger = document.getElementById('drive-select-trigger');
+        const menu = document.getElementById('drive-select-menu');
+
+        if (!trigger || !menu) return;
+
+        trigger.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.classList.toggle('active');
+            trigger.setAttribute('aria-expanded', menu.classList.contains('active') ? 'true' : 'false');
+        });
+
+        document.addEventListener('click', function () {
+            menu.classList.remove('active');
+            trigger.setAttribute('aria-expanded', 'false');
+        });
+
+        document.querySelectorAll('.drive-select-option').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const selectedScope = this.getAttribute('data-scope');
+                
+                if (selectedScope !== state.currentDriveScope) {
+                    state.currentDriveScope = selectedScope;
+                    localStorage.setItem('drive_scope', selectedScope);
+                    
+                    state.currentFolderId = null;
+                    state.currentTab = 'index';
+                    
+                    updateDriveScopeSelectorUI();
+                    
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('folder_id');
+                    window.history.pushState({
+                        currentTab: state.currentTab,
+                        currentFolderId: null,
+                        searchQuery: ''
+                    }, '', url.pathname);
+
+                    loadCurrentView(true);
+                }
+                
+                menu.classList.remove('active');
+                trigger.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        updateDriveScopeSelectorUI();
+    }
+
+    function updateNewMenuFormActions() {
+        document.querySelectorAll('.app-new-menu-form').forEach(form => {
+            const action = form.getAttribute('action');
+            if (action) {
+                try {
+                    const url = new URL(action, window.location.origin);
+                    url.searchParams.set('drive_scope', state.currentDriveScope);
+                    if (state.currentFolderId) {
+                        url.searchParams.set('parent_id', state.currentFolderId);
+                    } else {
+                        url.searchParams.delete('parent_id');
+                    }
+                    form.setAttribute('action', url.pathname + url.search);
+                } catch(e) {}
+            }
+        });
+    }
+
+    function updateNewMenuVisibility() {
+        const isProjectRoot = state.currentDriveScope === 'project' && state.currentFolderId === null;
+        const newMenu = document.getElementById('app-new-menu');
+        if (!newMenu) return;
+        
+        newMenu.querySelectorAll('.app-new-menu-form').forEach(form => {
+            const isFolderForm = form.id === 'new-folder-form';
+            if (isProjectRoot) {
+                if (isFolderForm) {
+                    form.style.display = 'block';
+                    const span = form.querySelector('span');
+                    const icon = form.querySelector('i');
+                    if (span) span.textContent = 'New Project';
+                    if (icon) {
+                        icon.className = 'ri-folder-add-line menu-icon-folder';
+                    }
+                } else {
+                    form.style.display = 'none';
+                }
+            } else {
+                form.style.display = 'block';
+                if (isFolderForm) {
+                    const span = form.querySelector('span');
+                    if (span) span.textContent = 'New Folder';
+                }
+            }
+        });
     }
 
     // ------------------------------------------
@@ -202,8 +335,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const params = [];
         params.push('json=1');
+        params.push(`drive_scope=${state.currentDriveScope}`);
         if (state.currentFolderId) params.push(`folder_id=${state.currentFolderId}`);
         apiUrl += (apiUrl.includes('?') ? '&' : '?') + params.join('&');
+
+        // Update form actions and visibility in layouts
+        updateNewMenuFormActions();
+        updateNewMenuVisibility();
 
         fetch(apiUrl, {
             headers: {
@@ -312,7 +450,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <!-- Breadcrumbs & Toolbar -->
                 <div class="d-flex jc-between ai-center fw-wrap gap-10 mg-b-15">
-                    <div id="spa-breadcrumbs-container"></div>
+                    <div class="d-flex ai-center gap-10" style="display: flex; align-items: center; gap: 10px;">
+                        <div id="spa-breadcrumbs-container"></div>
+                        ${(state.currentFolder && state.currentFolder.project) ? `
+                            <button type="button" class="btn btn-outline" id="btn-project-info" title="Project Info" style="padding: 4px 8px; border-radius: 12px; font-size: 11px; display: flex; align-items: center; gap: 4px; border: 1px solid var(--accent-orange); color: var(--accent-orange); background: transparent; cursor: pointer; transition: all 0.2s ease;">
+                                <i class="ri-information-line"></i> Info
+                            </button>
+                        ` : ''}
+                    </div>
                     
                     <div class="d-flex ai-center gap-8">
                         ${state.currentTab === 'index' ? `
@@ -344,6 +489,7 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
 
         spaContentArea.innerHTML = html;
+        detailsDrawer = document.getElementById('details-drawer');
 
         // Render Breadcrumbs
         renderBreadcrumbs();
@@ -936,6 +1082,14 @@ document.addEventListener('DOMContentLoaded', function () {
             loadCurrentView();
         });
 
+        document.getElementById('btn-project-info')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (state.currentFolder) {
+                state.selectedItem = { ...state.currentFolder, is_folder: true };
+                renderDetailsDrawer();
+            }
+        });
+
         // See more buttons click handlers
         document.getElementById('see-more-folders')?.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -1324,6 +1478,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
 
+                ${(isFolder && item.project) ? `
+                <div class="mg-t-15" style="border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                    <div class="drawer-section-title">Project Members</div>
+                    <div id="project-members-list" class="d-flex fd-column gap-8">
+                        <!-- Members will render dynamically -->
+                    </div>
+                    
+                    <div id="add-project-member-section" class="mg-t-15" style="display: none;">
+                        <div class="d-flex gap-6" style="display: flex; gap: 6px;">
+                            <input type="email" id="project-member-email" class="form-control" style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white;" placeholder="Add member by email...">
+                            <button type="button" class="btn btn-primary" id="btn-add-project-member" style="padding: 6px 12px; font-size: 12px; height: 34px;">Add</button>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
                 <div class="drawer-actions">
                     ${isTrash ? `
                         <button class="btn btn-secondary w-100" id="drawer-btn-restore"><i class="ri-history-line"></i> Restore</button>
@@ -1344,6 +1514,113 @@ document.addEventListener('DOMContentLoaded', function () {
 
         detailsDrawer.innerHTML = drawerHtml;
         detailsDrawer.classList.remove('collapsed');
+
+        // Populate and bind Project Members if available
+        if (isFolder && item.project) {
+            const membersList = document.getElementById('project-members-list');
+            const project = item.project;
+            const members = project.members || [];
+            
+            const userIdMeta = document.querySelector('meta[name="user-id"]');
+            const currentUserId = userIdMeta ? parseInt(userIdMeta.getAttribute('content')) : 0;
+            const currentUserRole = document.body.getAttribute('data-user-role');
+            
+            const isManager = members.some(m => m.id === currentUserId && m.pivot?.role === 'manager') ||
+                              project.created_by === currentUserId ||
+                              ['admin', 'superadmin'].includes(currentUserRole);
+
+            let membersHtml = '';
+            members.forEach(member => {
+                const isCreator = project.created_by === member.id;
+                const roleLabel = member.pivot?.role === 'manager' ? 'Manager' : 'Member';
+                const removeBtn = (isManager && !isCreator) 
+                    ? `<button type="button" class="btn-remove-member btn-icon" data-user-id="${member.id}" data-project-id="${project.id}" title="Remove member" style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"><i class="ri-close-circle-fill" style="color: #ff3344; font-size: 16px;"></i></button>` 
+                    : '';
+
+                membersHtml += `
+                    <div class="d-flex jc-between ai-center pd-6 br-6" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="d-flex fd-column overflow-hidden" style="display: flex; flex-direction: column; text-align: left; overflow: hidden;">
+                            <span class="fs-12 fw-600 clr-white" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 12px; font-weight: 600; color: #fff;">${escapeHtml(member.name)}</span>
+                            <span class="fs-10 clr-grey2" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 10px; color: #aaa;">${escapeHtml(member.email)} (${roleLabel})</span>
+                        </div>
+                        ${removeBtn}
+                    </div>
+                `;
+            });
+
+            if (membersList) membersList.innerHTML = membersHtml;
+
+            const addSection = document.getElementById('add-project-member-section');
+            if (addSection) {
+                addSection.style.display = isManager ? 'block' : 'none';
+            }
+
+            // Bind add button
+            document.getElementById('btn-add-project-member')?.addEventListener('click', function() {
+                const emailInput = document.getElementById('project-member-email');
+                const email = emailInput?.value?.trim();
+                if (!email) return;
+
+                const btn = this;
+                btn.disabled = true;
+
+                fetch(`/projects/${project.id}/members`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.status === 'success') {
+                        showToast(data.message);
+                        if (emailInput) emailInput.value = '';
+                        loadCurrentView(false);
+                    } else {
+                        showToast(data.message || 'Error adding member.', 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    showToast('Error adding member.', 'error');
+                });
+            });
+
+            // Bind remove buttons
+            document.querySelectorAll('.btn-remove-member').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const userId = this.getAttribute('data-user-id');
+                    const projectId = this.getAttribute('data-project-id');
+                    
+                    if (!confirm('Are you sure you want to remove this member from the project?')) {
+                        return;
+                    }
+
+                    fetch(`/projects/${projectId}/members/${userId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast(data.message);
+                            loadCurrentView(false);
+                        } else {
+                            showToast(data.message || 'Error removing member.', 'error');
+                        }
+                    })
+                    .catch(err => showToast('Error removing member.', 'error'));
+                });
+            });
+        }
 
         // Bind drawer clicks
         document.getElementById('btn-close-drawer')?.addEventListener('click', () => {
@@ -1409,7 +1686,7 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('parent_id', state.currentFolderId);
         }
 
-        fetch('/folders', {
+        fetch('/folders?drive_scope=' + state.currentDriveScope, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': csrfToken,
@@ -1438,7 +1715,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         showToast(`Uploading ${fileList.length} files...`, 'info');
 
-        fetch('/uploads/files', {
+        fetch('/uploads/files?drive_scope=' + state.currentDriveScope, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': csrfToken,
@@ -1470,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         showToast(`Uploading folder with ${fileList.length} files...`, 'info');
 
-        fetch('/uploads/folder', {
+        fetch('/uploads/folder?drive_scope=' + state.currentDriveScope, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': csrfToken,
@@ -1927,7 +2204,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (wrap) wrap.style.display = 'none';
 
         // Fetch folders list from server
-        fetch('/drive/folders-list', {
+        fetch('/drive/folders-list?drive_scope=' + state.currentDriveScope, {
             headers: {
                 'Accept': 'application/json'
             }
@@ -2125,7 +2402,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        fetch('/folders', {
+        fetch('/folders?drive_scope=' + state.currentDriveScope, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
