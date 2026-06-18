@@ -329,6 +329,9 @@
     </div>
 </aside>
 
+<div class="drawer-backdrop collapsed" id="details-drawer-backdrop"></div>
+<div class="drive-details-drawer collapsed" id="details-drawer"></div>
+
 @include('components.preview-modal')
 
 <script src="{{ asset('js/workdrive-layout.js') }}?v={{ time() }}"></script>

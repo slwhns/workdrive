@@ -270,6 +270,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         state.searchQuery = query;
         state.selectedItem = null; // Reset selection on navigate
+        const detailsDrawerEl = document.getElementById('details-drawer');
+        const backdropEl = document.getElementById('details-drawer-backdrop');
+        if (detailsDrawerEl) detailsDrawerEl.classList.add('collapsed');
+        if (backdropEl) backdropEl.classList.add('collapsed');
         state.showAllFolders = false;
         state.showAllFiles = false;
         state.showAllList = false;
@@ -479,13 +483,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <!-- Dynamically generated items -->
                         </div>
                     </div>
-
-                    <!-- Details drawer panel -->
-                    <div class="drive-details-drawer collapsed" id="details-drawer">
-                        <!-- Drawer contents populate here -->
-                    </div>
                 </div>
-            </div>
         `;
 
         spaContentArea.innerHTML = html;
@@ -1432,7 +1430,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let drawerHtml = `
             <div class="drawer-header">
-                <span class="drawer-title">Item Details</span>
+                <div style="display: flex; flex-direction: column; overflow: hidden; max-width: calc(100% - 30px); text-align: left;">
+                    <span class="drawer-title">Item Details</span>
+                    <span class="drawer-subtitle" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+                </div>
                 <button type="button" class="btn-close-drawer" id="btn-close-drawer"><i class="ri-close-line"></i></button>
             </div>
             <div class="drawer-body">
@@ -1442,7 +1443,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
 
-                <div class="drawer-file-name text-center" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                <div class="drawer-file-name text-center" title="${escapeHtml(item.name)}" style="font-size: 14px; font-weight: 600; color: #fff; margin-top: -5px; word-break: break-all;">${escapeHtml(item.name)}</div>
                 
                 <div class="mg-t-10">
                     <div class="drawer-section-title">Properties</div>
@@ -1493,27 +1494,36 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
                 ` : ''}
-
-                <div class="drawer-actions">
-                    ${isTrash ? `
-                        <button class="btn btn-secondary w-100" id="drawer-btn-restore"><i class="ri-history-line"></i> Restore</button>
-                        <button class="btn btn-outline w-100" id="drawer-btn-force-delete"><i class="ri-delete-bin-line"></i> Purge</button>
-                    ` : `
-                        ${!isFolder ? `
+            </div>
+            
+            <div class="drawer-footer">
+                ${isTrash ? `
+                    <div class="drawer-footer-row">
+                        <button class="btn btn-secondary" id="drawer-btn-restore"><i class="ri-history-line"></i> Restore</button>
+                        <button class="btn btn-outline" id="drawer-btn-force-delete"><i class="ri-delete-bin-line"></i> Purge</button>
+                    </div>
+                ` : `
+                    ${!isFolder ? `
+                        <div class="drawer-footer-row">
                             <button class="btn btn-primary" id="drawer-btn-preview"><i class="ri-eye-line"></i> Preview</button>
                             <button class="btn btn-secondary" id="drawer-btn-download"><i class="ri-download-line"></i> Get File</button>
-                            <button class="btn btn-outline" id="drawer-btn-move" style="grid-column: 1 / -1; margin-top: 5px;"><i class="ri-folder-transfer-line"></i> Move Item</button>
-                        ` : `
-                            <button class="btn btn-primary" id="drawer-btn-open" style="grid-column: 1 / -1;"><i class="ri-folder-open-line"></i> Open Folder</button>
-                            <button class="btn btn-outline" id="drawer-btn-move" style="grid-column: 1 / -1; margin-top: 5px;"><i class="ri-folder-transfer-line"></i> Move Folder</button>
-                        `}
+                        </div>
+                        <div class="drawer-footer-row">
+                            <button class="btn btn-outline" id="drawer-btn-move"><i class="ri-folder-transfer-line"></i> Move Item</button>
+                        </div>
+                    ` : `
+                        <div class="drawer-footer-row">
+                            <button class="btn btn-primary" id="drawer-btn-open"><i class="ri-folder-open-line"></i> Open Folder</button>
+                            <button class="btn btn-outline" id="drawer-btn-move"><i class="ri-folder-transfer-line"></i> Move Folder</button>
+                        </div>
                     `}
-                </div>
+                `}
             </div>
         `;
 
         detailsDrawer.innerHTML = drawerHtml;
         detailsDrawer.classList.remove('collapsed');
+        document.getElementById('details-drawer-backdrop')?.classList.remove('collapsed');
 
         // Populate and bind Project Members if available
         if (isFolder && item.project) {
@@ -1623,11 +1633,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Bind drawer clicks
-        document.getElementById('btn-close-drawer')?.addEventListener('click', () => {
+        const closeDetailsDrawer = () => {
             detailsDrawer.classList.add('collapsed');
+            document.getElementById('details-drawer-backdrop')?.classList.add('collapsed');
             state.selectedItem = null;
             document.querySelectorAll('.drive-card').forEach(c => c.classList.remove('selected'));
-        });
+        };
+        document.getElementById('btn-close-drawer')?.addEventListener('click', closeDetailsDrawer);
+        document.getElementById('details-drawer-backdrop')?.addEventListener('click', closeDetailsDrawer);
 
         document.getElementById('drawer-btn-open')?.addEventListener('click', () => {
             navigateSPA(state.currentTab, item.id);

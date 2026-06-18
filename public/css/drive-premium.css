@@ -380,27 +380,51 @@ body.light-theme .context-menu-divider {
 
 /* Premium Sidebar Details Drawer */
 .drive-details-drawer {
-    width: 320px;
-    background: var(--glass-bg);
+    width: 450px;
+    background: rgba(18, 19, 22, 0.98);
     border-left: 1px solid var(--glass-border);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     display: flex;
     flex-direction: column;
-    position: relative;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    overflow-y: auto;
-    border-radius: 16px 0 0 16px;
-    margin-right: -20px;
-    margin-top: -20px;
-    margin-bottom: -20px;
-    height: calc(100% + 40px);
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    z-index: 1050;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s ease;
+    transform: translateX(0);
+    opacity: 1;
+    overflow: hidden;
+    border-radius: 0;
+    margin: 0 !important;
+}
+
+body.light-theme .drive-details-drawer {
+    background: rgba(255, 255, 255, 0.98);
 }
 
 .drive-details-drawer.collapsed {
-    width: 0;
+    transform: translateX(100%);
     border-left-width: 0;
-    margin-right: -20px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1040;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.3s ease;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.drawer-backdrop.collapsed {
     opacity: 0;
     pointer-events: none;
 }
@@ -408,21 +432,32 @@ body.light-theme .context-menu-divider {
 .drawer-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid var(--glass-border);
+    align-items: flex-start;
+    padding: 24px 24px 15px 24px;
+    border-bottom: none;
 }
 
 .drawer-title {
     font-weight: 700;
-    font-size: 15px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--white2);
+    font-size: 22px;
+    color: var(--accent-orange);
+    text-transform: none;
+    letter-spacing: normal;
 }
 
 body.light-theme .drawer-title {
-    color: #222;
+    color: var(--accent-orange);
+}
+
+.drawer-subtitle {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 4px;
+    font-weight: 400;
+}
+
+body.light-theme .drawer-subtitle {
+    color: #555;
 }
 
 .btn-close-drawer {
@@ -449,11 +484,12 @@ body.light-theme .btn-close-drawer:hover {
 }
 
 .drawer-body {
-    padding: 20px;
+    padding: 15px 24px 24px 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;
     flex-grow: 1;
+    overflow-y: auto;
 }
 
 .drawer-empty-state {
@@ -541,7 +577,7 @@ body.light-theme .drawer-info-label {
 .drawer-info-value {
     color: var(--white2);
     font-weight: 500;
-    max-width: 170px;
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -552,10 +588,101 @@ body.light-theme .drawer-info-value {
 }
 
 .drawer-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
-    margin-top: auto;
+    width: 100%;
+}
+
+.drawer-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--glass-border);
+    background: rgba(15, 17, 21, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+body.light-theme .drawer-footer {
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.drawer-footer-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.drawer-footer .btn {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.drawer-footer .btn-primary {
+    background: var(--accent-orange) !important;
+    color: #fff !important;
+    border: 1px solid var(--accent-orange) !important;
+}
+
+.drawer-footer .btn-primary:hover {
+    background: #e04a00 !important;
+    border-color: #e04a00 !important;
+    box-shadow: 0 0 10px var(--accent-orange-glow);
+}
+
+.drawer-footer .btn-secondary {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--white2) !important;
+    border: 1px solid var(--glass-border) !important;
+}
+
+.drawer-footer .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.drawer-footer .btn-outline {
+    background: transparent !important;
+    color: var(--white2) !important;
+    border: 1px solid var(--glass-border) !important;
+}
+
+.drawer-footer .btn-outline:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.light-theme .drawer-footer .btn-secondary {
+    background: rgba(0, 0, 0, 0.05) !important;
+    color: #333 !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme .drawer-footer .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.08) !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+body.light-theme .drawer-footer .btn-outline {
+    background: transparent !important;
+    color: #333 !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+body.light-theme .drawer-footer .btn-outline:hover {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-color: rgba(0, 0, 0, 0.2) !important;
 }
 
 /* Storage Space Display */

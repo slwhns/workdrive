@@ -2004,9 +2004,19 @@ body.app-theme {
 .app-sidebar {
     width: 74px;
     min-height: 100vh;
+    max-height: 100vh;
     background: var(--plt5);
     border-right: 1px solid #ffffff08;
     transition: width 0.2s ease;
+    overflow-y: auto;
+    scrollbar-width: none; /* Hide scrollbar for Firefox */
+    -ms-overflow-style: none; /* Hide scrollbar for IE/Edge */
+}
+
+.app-sidebar::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for Chrome, Safari, and newer Edge */
+    width: 0;
+    height: 0;
 }
 
 .app-sidebar:hover {
