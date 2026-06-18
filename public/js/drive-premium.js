@@ -1136,8 +1136,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 const itemId = this.getAttribute('data-item-id');
                 const itemType = this.getAttribute('data-item-type');
                 
-                // Select item
-                selectItem(itemId, itemType);
+                // Select item without opening drawer
+                selectItem(itemId, itemType, false);
                 
                 // Show context menu next to button
                 const rect = this.getBoundingClientRect();
@@ -1145,17 +1145,35 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
+        let clickTimeout = null;
+
         // Navigation / Selection click on cards
         document.querySelectorAll('.drive-card').forEach(card => {
             card.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const itemId = this.getAttribute('data-item-id');
                 const itemType = this.getAttribute('data-item-type');
-                selectItem(itemId, itemType);
+                
+                if (clickTimeout) {
+                    clearTimeout(clickTimeout);
+                    clickTimeout = null;
+                }
+                
+                // Select visually immediately
+                selectItem(itemId, itemType, false);
+                
+                clickTimeout = setTimeout(() => {
+                    renderDetailsDrawer();
+                    clickTimeout = null;
+                }, 200);
             });
 
             card.addEventListener('dblclick', function(e) {
                 e.stopPropagation();
+                if (clickTimeout) {
+                    clearTimeout(clickTimeout);
+                    clickTimeout = null;
+                }
                 const itemId = this.getAttribute('data-item-id');
                 const itemType = this.getAttribute('data-item-type');
                 
@@ -1181,10 +1199,14 @@ document.addEventListener('DOMContentLoaded', function () {
             card.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (clickTimeout) {
+                    clearTimeout(clickTimeout);
+                    clickTimeout = null;
+                }
                 const itemId = this.getAttribute('data-item-id');
                 const itemType = this.getAttribute('data-item-type');
                 
-                selectItem(itemId, itemType);
+                selectItem(itemId, itemType, false);
                 showContextMenu(e.clientX, e.clientY, e);
             });
         });
@@ -1231,7 +1253,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Selects a file or folder and updates selection classes & Detail drawer
-    function selectItem(id, type) {
+    function selectItem(id, type, openDrawer = true) {
         id = parseInt(id);
         const isFolder = type === 'folder';
 
@@ -1256,7 +1278,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         // Open and draw sidebar details drawer
-        renderDetailsDrawer();
+        if (openDrawer) {
+            renderDetailsDrawer();
+        }
     }
 
     // ------------------------------------------
@@ -1431,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let drawerHtml = `
             <div class="drawer-header">
                 <div style="display: flex; flex-direction: column; overflow: hidden; max-width: calc(100% - 30px); text-align: left;">
-                    <span class="drawer-title">Item Details</span>
+                    <span class="drawer-title">Project Details</span>
                     <span class="drawer-subtitle" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
                 </div>
                 <button type="button" class="btn-close-drawer" id="btn-close-drawer"><i class="ri-close-line"></i></button>
@@ -1443,7 +1467,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
 
-                <div class="drawer-file-name text-center" title="${escapeHtml(item.name)}" style="font-size: 14px; font-weight: 600; color: #fff; margin-top: -5px; word-break: break-all;">${escapeHtml(item.name)}</div>
+                
                 
                 <div class="mg-t-10">
                     <div class="drawer-section-title">Properties</div>
