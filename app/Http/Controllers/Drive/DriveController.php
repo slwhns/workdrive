@@ -21,8 +21,32 @@ use Illuminate\Support\Facades\Hash;
 
 class DriveController extends Controller
 {
-    /**
-     * Helper to apply scope constraints to queries
+    /**        
+     * const state = {
+     *    currentTab: 'index',      // 'index', 'shared', 'recents', 'starred', 'trash', 'search', 'tag'
+     *    currentFolderId: null,     // Current directory ID
+     *    currentTag: null,          // Current active tag name
+     *    tags: [],                  // All tags list
+     *    searchQuery: '',           // Search query
+     *    selectedItem: null,        // Selected file/folder object
+     *    viewMode: 'grid',          // 'grid' or 'list'
+     *    folders: [],
+     *    files: [],
+     *    breadcrumbs: [],
+     *    currentFolder: null,
+     *    storageUsed: 0,            // Total storage used in bytes
+     *    storageQuota: 5368709120,  // 5 GB Quota
+     *    docEditor: null,           // OnlyOffice editor instance
+     *    foldersLimit: 5,
+     *    filesLimit: 10,
+     *    showAllFolders: false,
+     *    showAllFiles: false,
+     *    listLimit: 10,
+     *    showAllList: false,
+     *    currentDriveScope: localStorage.getItem('drive_scope') || 'personal',
+     *    viewingOrganizationDetails: false,
+     *    userRole: document.body.getAttribute('data-user-role') // admin / superadmin / manager / user
+     * };
      */
     private function applyScopeConstraints($query, User $user, string $driveScope)
     {
@@ -205,8 +229,16 @@ class DriveController extends Controller
         }
 
         if ($parentId && $currentFolder) {
-            $folders = File::where('parent_id', $parentId)->where('is_folder', true)->get();
-            $files = File::where('parent_id', $parentId)->where('is_folder', false)->get();
+            $queryFolders = File::where('parent_id', $parentId)->where('is_folder', true);
+            $queryFiles = File::where('parent_id', $parentId)->where('is_folder', false);
+            
+            if ($driveScope === 'admin') {
+                $queryFolders->with('creator');
+                $queryFiles->with('creator');
+            }
+            
+            $folders = $queryFolders->get();
+            $files = $queryFiles->get();
         } else {
             // Root level filtering based on drive scope
             if ($driveScope === 'personal') {
@@ -247,16 +279,22 @@ class DriveController extends Controller
                     ->get();
                 $files = collect(); // no root level files in project scope
             } else if ($driveScope === 'admin') {
-                $folders = File::whereNull('parent_id')->where('is_folder', true)->get();
-                $files = File::whereNull('parent_id')->where('is_folder', false)->get();
+                $folders = File::whereNull('parent_id')->where('is_folder', true)->with('creator')->get();
+                $files = File::whereNull('parent_id')->where('is_folder', false)->with('creator')->get();
             }
         }
         
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files,
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
                 'breadcrumbs' => $breadcrumbs,
                 'currentFolder' => $currentFolder,
                 'drive_scope' => $driveScope
@@ -288,8 +326,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $sharedFolders,
-                'files' => $sharedFiles
+                'folders' => $sharedFolders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $sharedFiles->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                })
             ]);
         }
         
@@ -312,6 +356,11 @@ class DriveController extends Controller
         $queryFolders = File::onlyTrashed()->where('is_folder', true);
         $queryFiles = File::onlyTrashed()->where('is_folder', false);
 
+        if ($driveScope === 'admin') {
+            $queryFolders->with('creator');
+            $queryFiles->with('creator');
+        }
+
         $this->applyScopeConstraints($queryFolders, $user, $driveScope);
         $this->applyScopeConstraints($queryFiles, $user, $driveScope);
 
@@ -321,8 +370,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                })
             ]);
         }
         
@@ -345,6 +400,11 @@ class DriveController extends Controller
             $queryFolders = File::where('is_folder', true)->where('name', 'like', "%{$queryStr}%");
             $queryFiles = File::where('is_folder', false)->where('name', 'like', "%{$queryStr}%");
 
+            if ($driveScope === 'admin') {
+                $queryFolders->with('creator');
+                $queryFiles->with('creator');
+            }
+
             $this->applyScopeConstraints($queryFolders, $user, $driveScope);
             $this->applyScopeConstraints($queryFiles, $user, $driveScope);
 
@@ -355,8 +415,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files,
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
                 'query' => $queryStr
             ]);
         }
@@ -375,6 +441,11 @@ class DriveController extends Controller
         $queryFolders = File::where('is_folder', true)->orderBy('accessed_at', 'desc')->limit(10);
         $queryFiles = File::where('is_folder', false)->orderBy('accessed_at', 'desc')->limit(20);
 
+        if ($driveScope === 'admin') {
+            $queryFolders->with('creator');
+            $queryFiles->with('creator');
+        }
+
         $this->applyScopeConstraints($queryFolders, $user, $driveScope);
         $this->applyScopeConstraints($queryFiles, $user, $driveScope);
 
@@ -384,8 +455,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                })
             ]);
         }
         
@@ -403,6 +480,11 @@ class DriveController extends Controller
         $queryFolders = File::where('is_starred', true)->where('is_folder', true);
         $queryFiles = File::where('is_starred', true)->where('is_folder', false);
 
+        if ($driveScope === 'admin') {
+            $queryFolders->with('creator');
+            $queryFiles->with('creator');
+        }
+
         $this->applyScopeConstraints($queryFolders, $user, $driveScope);
         $this->applyScopeConstraints($queryFiles, $user, $driveScope);
 
@@ -412,8 +494,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                })
             ]);
         }
         
@@ -427,6 +515,7 @@ class DriveController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'parent_id' => ['nullable', 'integer', 'exists:files,id'],
         ]);
 
@@ -447,6 +536,7 @@ class DriveController extends Controller
                 // Create a Project
                 $project = Project::create([
                     'name' => $validated['name'],
+                    'description' => $validated['description'] ?? null,
                     'created_by' => $user->id,
                 ]);
 
@@ -1124,6 +1214,11 @@ class DriveController extends Controller
               ->orWhere('tags', 'like', '%"' . $tag . '"%');
         });
 
+        if ($driveScope === 'admin') {
+            $queryFolders->with('creator');
+            $queryFiles->with('creator');
+        }
+
         $this->applyScopeConstraints($queryFolders, $user, $driveScope);
         $this->applyScopeConstraints($queryFiles, $user, $driveScope);
 
@@ -1133,8 +1228,14 @@ class DriveController extends Controller
         if ($request->wantsJson() || $request->query('json')) {
             return response()->json([
                 'status' => 'success',
-                'folders' => $folders,
-                'files' => $files,
+                'folders' => $folders->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
+                'files' => $files->map(function($f){
+                    $f->creator = $f->creator ? ['id'=>$f->creator->id,'name'=>$f->creator->name,'email'=>$f->creator->email] : null;
+                    return $f;
+                }),
                 'tag' => $tag
             ]);
         }

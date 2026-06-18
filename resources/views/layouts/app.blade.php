@@ -24,7 +24,7 @@
     <link rel="stylesheet" href="{{ asset('css/preview.css') }}?v={{ time() }}">
     @stack('styles')
 </head>
-<body class="bg-white3 app-theme" data-user-role="{{ auth()->user()->role ?? 'user' }}">
+<body class="bg-white3 app-theme" data-user-role="{{ auth()->user()->role ?? 'user' }}" data-user-company="{{ auth()->user()->company ?? '' }}">
 @php
     $currentUser = auth()->user();
     $displayName = $currentUser?->name ?? 'User';

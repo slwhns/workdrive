@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', function () {
         showAllFiles: false,
         listLimit: 10,
         showAllList: false,
-        currentDriveScope: localStorage.getItem('drive_scope') || 'personal'
+        currentDriveScope: localStorage.getItem('drive_scope') || 'personal',
+        viewingOrganizationDetails: false
     };
 
     // Grab CSRF token
@@ -270,6 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         state.searchQuery = query;
         state.selectedItem = null; // Reset selection on navigate
+        state.viewingOrganizationDetails = false; // Reset organization details
         const detailsDrawerEl = document.getElementById('details-drawer');
         const backdropEl = document.getElementById('details-drawer-backdrop');
         if (detailsDrawerEl) detailsDrawerEl.classList.add('collapsed');
@@ -461,6 +463,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <i class="ri-information-line"></i> Info
                             </button>
                         ` : ''}
+                        ${(state.currentDriveScope === 'organization' && !state.currentFolderId) ? `
+                            <button type="button" class="btn btn-outline" id="btn-org-info" title="Organization Members" style="padding: 4px 8px; border-radius: 12px; font-size: 11px; display: flex; align-items: center; gap: 4px; border: 1px solid var(--accent-orange); color: var(--accent-orange); background: transparent; cursor: pointer; transition: all 0.2s ease;">
+                                <i class="ri-group-line"></i> Organization Members
+                            </button>
+                        ` : ''}
                     </div>
                     
                     <div class="d-flex ai-center gap-8">
@@ -543,6 +550,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderCards() {
         const grid = document.getElementById('spa-grid-container');
         if (!grid) return;
+
+        const hasCreator = (state.currentDriveScope === 'admin');
+        const hasCreatorClass = hasCreator ? 'has-creator' : '';
 
         const totalItems = state.folders.length + state.files.length;
 
@@ -642,8 +652,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 html += `
-                    <div class="drive-list-header" role="rowgroup">
+                    <div class="drive-list-header ${hasCreatorClass}" role="rowgroup">
                         <div class="col-name">Name</div>
+                        ${hasCreator ? `<div class="col-creator">Created by</div>` : ''}
                         <div class="col-modified">Last modified</div>
                         <div class="col-size">Size</div>
                         <div class="col-actions" aria-hidden="true"></div>
@@ -748,6 +759,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const starClass = item.is_starred ? 'active' : '';
         const starIcon = item.is_starred ? 'ri-star-fill' : 'ri-star-line';
         
+        const hasCreator = (state.currentDriveScope === 'admin');
+        const hasCreatorClass = hasCreator ? 'has-creator' : '';
+
         // Dynamic file type mapping
         const typeInfo = getFileTypeInfo(item.name, isFolder, item.mime_type);
         const formattedDate = formatDate(item.updated_at || item.created_at);
@@ -756,7 +770,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (state.viewMode === 'list' && !forceGridView) {
             const tagsHtml = renderCardTagsInline(item.tags);
             return `
-                <div class="drive-card ${selectedClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" data-file-id="${item.id}" data-is-folder="${isFolder}">
+                <div class="drive-card ${selectedClass} ${hasCreatorClass}" data-item-id="${item.id}" data-item-type="${isFolder ? 'folder' : 'file'}" data-file-id="${item.id}" data-is-folder="${isFolder}">
                     <div class="drive-card-top">
                         <div class="drive-card-icon ${typeInfo.iconColorClass}">
                             <i class="${typeInfo.icon}"></i>
@@ -766,6 +780,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             ${tagsHtml}
                         </div>
                     </div>
+                    ${hasCreator ? `
+                        <div class="col-creator" style="text-align: left; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; display: flex; flex-direction: column; justify-content: center;">
+                            <span class="fs-12 fw-600 clr-white" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${item.creator ? escapeHtml(item.creator.name) : 'System'}</span>
+                            <span class="fs-10 clr-grey2" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${item.creator ? escapeHtml(item.creator.email) : ''}</span>
+                        </div>
+                    ` : ''}
                     <div class="col-modified">${formattedDate}</div>
                     <div class="col-size">${formattedSize}</div>
                     <div class="drive-card-actions">
@@ -780,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const tagsHtml = renderCardTagsInline(item.tags);
                 // Compact Google Drive-style Folder Card
                 return `
-                    <div class="drive-card folder-card ${selectedClass}" data-item-id="${item.id}" data-item-type="folder" data-file-id="${item.id}" data-is-folder="true">
+                    <div class="drive-card folder-card ${selectedClass} ${hasCreatorClass}" data-item-id="${item.id}" data-item-type="folder" data-file-id="${item.id}" data-is-folder="true">
                         <div class="folder-card-content">
                             <div class="drive-card-icon ${typeInfo.iconColorClass}">
                                 <i class="${typeInfo.icon}"></i>
@@ -788,6 +808,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="d-flex fd-column fg-1 overflow-hidden" style="margin-inline-start: 4px;">
                                 <div class="drive-card-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
                                 ${tagsHtml}
+                                ${hasCreator ? `
+                                    <span style="font-size: 9.5px; color: var(--accent-orange); font-weight: 500; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="Created by: ${item.creator ? escapeHtml(item.creator.name) + ' (' + escapeHtml(item.creator.email) + ')' : 'System'}">
+                                        By: ${item.creator ? escapeHtml(item.creator.name) : 'System'}
+                                    </span>
+                                ` : ''}
                             </div>
                             <div class="folder-card-actions">
                                 <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="folder" title="Star folder"></i>
@@ -821,10 +846,17 @@ document.addEventListener('DOMContentLoaded', function () {
                             <i class="spa-star-trigger ${starIcon} drive-card-star ${starClass}" data-item-id="${item.id}" data-item-type="file" title="Star file"></i>
                             <div class="d-flex fd-column ai-end gap-2">
                                 ${tagsHtml}
-                                <div class="file-card-meta">
-                                    <span>${formattedSize}</span>
-                                    <span>•</span>
-                                    <span>${formattedDate}</span>
+                                <div class="file-card-meta d-flex fd-column ai-end">
+                                    ${hasCreator ? `
+                                        <span style="font-size: 9.5px; color: var(--accent-orange); opacity: 0.9; margin-bottom: 2px; font-weight: 500;" title="Created by: ${item.creator ? escapeHtml(item.creator.name) + ' (' + escapeHtml(item.creator.email) + ')' : 'System'}">
+                                            By: ${item.creator ? escapeHtml(item.creator.name) : 'System'}
+                                        </span>
+                                    ` : ''}
+                                    <div class="d-flex ai-center gap-4">
+                                        <span>${formattedSize}</span>
+                                        <span>•</span>
+                                        <span>${formattedDate}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1088,6 +1120,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
+        document.getElementById('btn-org-info')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            state.viewingOrganizationDetails = true;
+            state.selectedItem = null;
+            renderDetailsDrawer();
+        });
+
         // See more buttons click handlers
         document.getElementById('see-more-folders')?.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -1214,10 +1253,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Bind dynamic creation & uploads in main toolbar
         document.getElementById('spa-btn-create-folder')?.addEventListener('click', function(e) {
             e.stopPropagation();
-            const folderName = window.prompt('Enter folder name:');
-            if (folderName && folderName.trim()) {
-                executeFolderCreate(folderName.trim());
-            }
+            window.openCreateItemModal();
         });
 
         document.getElementById('spa-upload-input')?.addEventListener('change', function(e) {
@@ -1250,6 +1286,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
         }
+
+        // Intercept sidebar New Folder/New Project click trigger
+        document.querySelectorAll('[data-new-action="folder"]').forEach(button => {
+            const newBtn = button.cloneNode(true);
+            button.parentNode.replaceChild(newBtn, button);
+            newBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                // Close the dropdown menu
+                const newWrap = document.querySelector('.app-new-wrap');
+                const newTrigger = document.getElementById('app-new-trigger');
+                if (newWrap && newTrigger) {
+                    newWrap.classList.remove('is-open');
+                    newTrigger.setAttribute('aria-expanded', 'false');
+                }
+                window.openCreateItemModal();
+            });
+        });
     }
 
     // Selects a file or folder and updates selection classes & Detail drawer
@@ -1265,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!item) return;
 
         state.selectedItem = { ...item, is_folder: isFolder };
+        state.viewingOrganizationDetails = false; // Reset organization details on file selection
 
         // Highlight card visually
         document.querySelectorAll('.drive-card').forEach(card => {
@@ -1442,7 +1496,210 @@ document.addEventListener('DOMContentLoaded', function () {
     // 7. SIDEBAR DETAILS DRAWER RENDERING
     // ------------------------------------------
     function renderDetailsDrawer() {
-        if (!detailsDrawer || !state.selectedItem) return;
+        if (!detailsDrawer || (!state.selectedItem && !state.viewingOrganizationDetails)) return;
+
+        if (state.viewingOrganizationDetails) {
+            const companyName = document.body.getAttribute('data-user-company') || 'Organization';
+            let drawerHtml = `
+                <div class="drawer-header">
+                    <div style="display: flex; flex-direction: column; overflow: hidden; max-width: calc(100% - 30px); text-align: left;">
+                        <span class="drawer-title" style="color: var(--accent-orange);">Organization Details</span>
+                        <span class="drawer-subtitle" title="${escapeHtml(companyName)}">${escapeHtml(companyName)}</span>
+                    </div>
+                    <button type="button" class="btn-close-drawer" id="btn-close-drawer"><i class="ri-close-line"></i></button>
+                </div>
+                <div class="drawer-body">
+                    <div class="drawer-preview">
+                        <div class="drawer-preview-icon clr-blue" style="font-size: 48px; display: flex; align-items: center; justify-content: center; height: 100px;">
+                            <i class="ri-building-line" style="color: var(--accent-orange);"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="mg-t-10">
+                        <div class="drawer-section-title">Properties</div>
+                        <div class="drawer-info-grid">
+                            <div class="drawer-info-row">
+                                <span class="drawer-info-label">Type</span>
+                                <span class="drawer-info-value">Organization</span>
+                            </div>
+                            <div class="drawer-info-row">
+                                <span class="drawer-info-label">Name</span>
+                                <span class="drawer-info-value">${escapeHtml(companyName)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mg-t-15" style="border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                        <div class="drawer-section-title">Organization Members</div>
+                        <div id="org-members-list" class="d-flex fd-column gap-8">
+                            <div class="spinner-small" style="margin: 20px auto; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--accent-orange); border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite;"></div>
+                        </div>
+                        
+                        <div id="add-org-member-section" class="mg-t-15" style="display: none;">
+                            <div class="d-flex gap-6" style="display: flex; gap: 6px;">
+                                <select id="org-member-email" class="form-control" style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white; border: 1px solid var(--glass-border); border-radius: 6px; flex: 1;">
+                                    <option value="" style="background: #1a1a1a; color: #aaa;">Select user...</option>
+                                </select>
+                                <button type="button" class="btn btn-primary" id="btn-add-org-member" style="padding: 6px 12px; font-size: 12px; height: 34px;">Add</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-footer">
+                    <div class="drawer-footer-row" style="padding: 10px 0 0 0;">
+                        <button class="btn btn-outline" id="btn-close-drawer-footer" style="width: 100%;">Close</button>
+                    </div>
+                </div>
+            `;
+
+            detailsDrawer.innerHTML = drawerHtml;
+            detailsDrawer.classList.remove('collapsed');
+            document.getElementById('details-drawer-backdrop')?.classList.remove('collapsed');
+
+            const membersList = document.getElementById('org-members-list');
+            const addSection = document.getElementById('add-org-member-section');
+            const selectEl = document.getElementById('org-member-email');
+            const userIdMeta = document.querySelector('meta[name="user-id"]');
+            const currentUserId = userIdMeta ? parseInt(userIdMeta.getAttribute('content')) : 0;
+            const currentUserRole = document.body.getAttribute('data-user-role');
+            const isOrgManager = ['manager', 'admin', 'superadmin'].includes(currentUserRole);
+
+            // Fetch organization members
+            fetch('/organization/members')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const members = data.members || [];
+                        let membersHtml = '';
+                        members.forEach(member => {
+                            const isSelf = member.id === currentUserId;
+                            const removeBtn = (isOrgManager && !isSelf) 
+                                ? `<button type="button" class="btn-remove-org-member btn-icon" data-user-id="${member.id}" title="Remove member" style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"><i class="ri-close-circle-fill" style="color: #ff3344; font-size: 16px;"></i></button>` 
+                                : '';
+
+                            membersHtml += `
+                                <div class="d-flex jc-between ai-center pd-6 br-6" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div class="d-flex fd-column overflow-hidden" style="display: flex; flex-direction: column; text-align: left; overflow: hidden;">
+                                        <span class="fs-12 fw-600 clr-white" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 12px; font-weight: 600; color: #fff;">${escapeHtml(member.name)}</span>
+                                        <span class="fs-10 clr-grey2" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 10px; color: #aaa;">${escapeHtml(member.email)}</span>
+                                    </div>
+                                    ${removeBtn}
+                                </div>
+                            `;
+                        });
+                        if (members.length === 0) {
+                            membersHtml = '<div class="fs-12 clr-grey2 pd-10 text-center">No members in this organization.</div>';
+                        }
+                        if (membersList) membersList.innerHTML = membersHtml;
+
+                        // Bind remove buttons
+                        document.querySelectorAll('.btn-remove-org-member').forEach(btn => {
+                            btn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                const userId = this.getAttribute('data-user-id');
+                                
+                                if (!confirm('Are you sure you want to remove this user from the organization?')) {
+                                    return;
+                                }
+
+                                fetch(`/organization/members/${userId}`, {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'X-CSRF-TOKEN': csrfToken,
+                                        'Accept': 'application/json'
+                                    }
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.status === 'success') {
+                                        showToast(data.message);
+                                        renderDetailsDrawer(); // refresh drawer
+                                    } else {
+                                        showToast(data.message || 'Error removing member.', 'error');
+                                    }
+                                })
+                                .catch(err => showToast('Error removing member.', 'error'));
+                            });
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    if (membersList) membersList.innerHTML = '<div class="fs-12 clr-red pd-10 text-center">Failed to load members.</div>';
+                });
+
+            // Show add section and populate select
+            if (addSection) {
+                addSection.style.display = isOrgManager ? 'block' : 'none';
+                if (isOrgManager && selectEl) {
+                    fetch('/organization/available-users')
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                selectEl.innerHTML = '<option value="" style="background: #1a1a1a; color: #aaa;">Select user...</option>';
+                                data.users.forEach(user => {
+                                    const opt = document.createElement('option');
+                                    opt.value = user.email;
+                                    opt.textContent = `${user.name} (${user.email})`;
+                                    opt.style.background = '#1a1a1a';
+                                    opt.style.color = '#fff';
+                                    selectEl.appendChild(opt);
+                                });
+                            }
+                        })
+                        .catch(err => console.error('Error fetching available users:', err));
+                }
+            }
+
+            // Bind add button
+            document.getElementById('btn-add-org-member')?.addEventListener('click', function() {
+                const emailInput = document.getElementById('org-member-email');
+                const email = emailInput?.value?.trim();
+                if (!email) return;
+
+                const btn = this;
+                btn.disabled = true;
+
+                fetch('/organization/members', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.status === 'success') {
+                        showToast(data.message);
+                        if (emailInput) emailInput.value = '';
+                        renderDetailsDrawer(); // refresh drawer
+                    } else {
+                        showToast(data.message || 'Error adding member.', 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    showToast('Error adding member.', 'error');
+                });
+            });
+
+            // Bind close buttons
+            const closeDetailsDrawer = () => {
+                detailsDrawer.classList.add('collapsed');
+                document.getElementById('details-drawer-backdrop')?.classList.add('collapsed');
+                state.selectedItem = null;
+                state.viewingOrganizationDetails = false;
+                document.querySelectorAll('.drive-card').forEach(c => c.classList.remove('selected'));
+            };
+            document.getElementById('btn-close-drawer')?.addEventListener('click', closeDetailsDrawer);
+            document.getElementById('btn-close-drawer-footer')?.addEventListener('click', closeDetailsDrawer);
+            document.getElementById('details-drawer-backdrop')?.addEventListener('click', closeDetailsDrawer);
+
+            return;
+        }
 
         const item = state.selectedItem;
         const isFolder = item.is_folder;
@@ -1484,6 +1741,14 @@ document.addEventListener('DOMContentLoaded', function () {
                             <span class="drawer-info-label">Created</span>
                             <span class="drawer-info-value">${formattedCreated}</span>
                         </div>
+                        ${(item.creator && state.currentDriveScope === 'admin') ? `
+                        <div class="drawer-info-row">
+                            <span class="drawer-info-label">Created By</span>
+                            <span class="drawer-info-value" title="${escapeHtml(item.creator.email)}" style="color: var(--accent-orange); font-weight: 500;">
+                                ${escapeHtml(item.creator.name)} &lt;${escapeHtml(item.creator.email)}&gt;
+                            </span>
+                        </div>
+                        ` : ''}
                         <div class="drawer-info-row">
                             <span class="drawer-info-label">Modified</span>
                             <span class="drawer-info-value">${formattedUpdated}</span>
@@ -1697,6 +1962,7 @@ document.addEventListener('DOMContentLoaded', function () {
             detailsDrawer.classList.add('collapsed');
             document.getElementById('details-drawer-backdrop')?.classList.add('collapsed');
             state.selectedItem = null;
+            state.viewingOrganizationDetails = false;
             document.querySelectorAll('.drive-card').forEach(c => c.classList.remove('selected'));
         };
         document.getElementById('btn-close-drawer')?.addEventListener('click', closeDetailsDrawer);
@@ -1752,9 +2018,12 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => showToast('Error starring file.', 'error'));
     }
 
-    function executeFolderCreate(name) {
+    function executeFolderCreate(name, description = '') {
         const formData = new FormData();
         formData.append('name', name);
+        if (description) {
+            formData.append('description', description);
+        }
         if (state.currentFolderId) {
             formData.append('parent_id', state.currentFolderId);
         }
@@ -1772,6 +2041,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data.status === 'success') {
                 showToast(data.message);
                 loadCurrentView(false);
+            } else {
+                showToast(data.message || 'Error creating folder.', 'error');
             }
         })
         .catch(err => showToast('Error creating folder.', 'error'));
@@ -2222,6 +2493,39 @@ document.addEventListener('DOMContentLoaded', function () {
             document.body.style.overflow = '';
             switchToMainPanel();
         }
+    };
+
+    window.openCreateItemModal = function() {
+        const modal = document.getElementById('create-item-modal');
+        if (!modal) return;
+
+        const isProjectRoot = state.currentDriveScope === 'project' && state.currentFolderId === null;
+        const titleEl = document.getElementById('create-item-title');
+        const labelEl = document.getElementById('create-item-name-label');
+        const descGroup = document.getElementById('create-item-desc-group');
+        const nameInput = document.getElementById('create-item-name-input');
+        const descInput = document.getElementById('create-item-desc-input');
+
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+
+        if (isProjectRoot) {
+            if (titleEl) titleEl.innerHTML = '<i class="ri-folder-add-line clr-plt1"></i> Create New Project';
+            if (labelEl) labelEl.textContent = 'Project Name';
+            if (descGroup) descGroup.style.display = 'block';
+        } else {
+            if (titleEl) titleEl.innerHTML = '<i class="ri-folder-add-line clr-plt1"></i> Create New Folder';
+            if (labelEl) labelEl.textContent = 'Folder Name';
+            if (descGroup) descGroup.style.display = 'none';
+        }
+
+        openModal(modal);
+        if (nameInput) setTimeout(() => nameInput.focus(), 100);
+    };
+
+    window.closeCreateItemModal = function() {
+        const modal = document.getElementById('create-item-modal');
+        if (modal) closeModal(modal);
     };
 
     window.handleSaveSettings = function(event) {
@@ -3246,6 +3550,55 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.preventDefault();
                 executeTagsSave(modalActiveTags);
             });
+        }
+
+        // Create Create Item Modal (Folder/Project)
+        if (!document.getElementById('create-item-modal')) {
+            const createItem = document.createElement('div');
+            createItem.id = 'create-item-modal';
+            createItem.className = 'premium-modal';
+            createItem.innerHTML = `
+                <div class="premium-modal-backdrop" onclick="closeCreateItemModal()"></div>
+                <div class="premium-modal-dialog">
+                    <div class="premium-modal-header">
+                        <span class="premium-modal-title" id="create-item-title"><i class="ri-folder-add-line clr-plt1"></i> Create Folder</span>
+                        <button type="button" class="btn-close-drawer" onclick="closeCreateItemModal()"><i class="ri-close-line"></i></button>
+                    </div>
+                    <form id="create-item-form">
+                        <div class="premium-modal-body">
+                            <div class="form-group">
+                                <label class="form-label" id="create-item-name-label" for="create-item-name-input">Folder Name</label>
+                                <input type="text" id="create-item-name-input" class="form-control" required autocomplete="off">
+                            </div>
+                            <div class="form-group" id="create-item-desc-group" style="display: none; margin-top: 15px;">
+                                <label class="form-label" for="create-item-desc-input">Description (Optional)</label>
+                                <textarea id="create-item-desc-input" class="form-control" rows="3" style="resize: none; background: rgba(0,0,0,0.2); color: white; border: 1px solid var(--glass-border); border-radius: 6px; padding: 8px; font-size: 13px; width: 100%; box-sizing: border-box;"></textarea>
+                            </div>
+                        </div>
+                        <div class="premium-modal-footer">
+                            <button type="button" class="btn btn-outline" id="btn-close-create-item">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="btn-submit-create-item">Create</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(createItem);
+
+            const createItemForm = document.getElementById('create-item-form');
+            createItemForm?.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const nameInput = document.getElementById('create-item-name-input');
+                const descInput = document.getElementById('create-item-desc-input');
+                const name = nameInput?.value?.trim();
+                const description = descInput?.value?.trim() || '';
+
+                if (name) {
+                    executeFolderCreate(name, description);
+                    window.closeCreateItemModal();
+                }
+            });
+
+            document.getElementById('btn-close-create-item')?.addEventListener('click', () => window.closeCreateItemModal());
         }
     }
 

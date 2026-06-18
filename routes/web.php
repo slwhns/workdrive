@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Office\OnlyOfficeController;
 use App\Http\Controllers\Preview\FilePreviewController;
 use App\Http\Controllers\Drive\ProjectController;
+use App\Http\Controllers\Drive\OrganizationController;
 
 // Public routes
 Route::middleware('guest')->group(function () {
@@ -79,6 +80,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}/available-users', [ProjectController::class, 'getAvailableUsers'])->name('projects.members.available');
     Route::post('/projects/{project}/members', [ProjectController::class, 'addMember'])->name('projects.members.add');
     Route::delete('/projects/{project}/members/{user}', [ProjectController::class, 'removeMember'])->name('projects.members.remove');
+    
+    // Organization Member operations
+    Route::get('/organization/members', [OrganizationController::class, 'getMembers'])->name('organization.members.get');
+    Route::get('/organization/available-users', [OrganizationController::class, 'getAvailableUsers'])->name('organization.members.available');
+    Route::post('/organization/members', [OrganizationController::class, 'addMember'])->name('organization.members.add');
+    Route::delete('/organization/members/{user}', [OrganizationController::class, 'removeMember'])->name('organization.members.remove');
     
     // Logout
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');

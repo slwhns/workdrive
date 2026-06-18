@@ -2451,3 +2451,14 @@ body.light-theme .drive-select-option:hover {
 body.light-theme .drive-select-option.active {
     background: rgba(245, 75, 13, 0.12);
 }
+
+/* Creator Column & Info for Admin Scope */
+.drive-list-header.has-creator,
+.drive-grid.list-view .drive-card.has-creator {
+    grid-template-columns: 1.5fr 1fr 1fr 120px 48px;
+}
+
+.drive-card.folder-card.has-creator {
+    min-height: 52px !important;
+    height: 52px !important;
+}
