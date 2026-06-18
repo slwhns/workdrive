@@ -1512,7 +1512,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     
                     <div id="add-project-member-section" class="mg-t-15" style="display: none;">
                         <div class="d-flex gap-6" style="display: flex; gap: 6px;">
-                            <input type="email" id="project-member-email" class="form-control" style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white;" placeholder="Add member by email...">
+                            <select id="project-member-email" class="form-control" style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white; border: 1px solid var(--glass-border); border-radius: 6px; flex: 1;">
+                                <option value="" style="background: #1a1a1a; color: #aaa;">Select user...</option>
+                            </select>
                             <button type="button" class="btn btn-primary" id="btn-add-project-member" style="padding: 6px 12px; font-size: 12px; height: 34px;">Add</button>
                         </div>
                     </div>
@@ -1587,6 +1589,27 @@ document.addEventListener('DOMContentLoaded', function () {
             const addSection = document.getElementById('add-project-member-section');
             if (addSection) {
                 addSection.style.display = isManager ? 'block' : 'none';
+                if (isManager) {
+                    const selectEl = document.getElementById('project-member-email');
+                    if (selectEl) {
+                        fetch(`/projects/${project.id}/available-users`)
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    selectEl.innerHTML = '<option value="" style="background: #1a1a1a; color: #aaa;">Select user...</option>';
+                                    data.users.forEach(user => {
+                                        const opt = document.createElement('option');
+                                        opt.value = user.email;
+                                        opt.textContent = `${user.name} (${user.email})`;
+                                        opt.style.background = '#1a1a1a';
+                                        opt.style.color = '#fff';
+                                        selectEl.appendChild(opt);
+                                    });
+                                }
+                            })
+                            .catch(err => console.error('Error fetching available users:', err));
+                    }
+                }
             }
 
             // Bind add button
@@ -1613,6 +1636,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (data.status === 'success') {
                         showToast(data.message);
                         if (emailInput) emailInput.value = '';
+                        // Update local selected item members state and re-render
+                        if (state.selectedItem && state.selectedItem.project) {
+                            if (!state.selectedItem.project.members) {
+                                state.selectedItem.project.members = [];
+                            }
+                            state.selectedItem.project.members.push(data.user);
+                            renderDetailsDrawer();
+                        }
                         loadCurrentView(false);
                     } else {
                         showToast(data.message || 'Error adding member.', 'error');
@@ -1646,6 +1677,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then(data => {
                         if (data.status === 'success') {
                             showToast(data.message);
+                            // Update local selected item members state and re-render
+                            if (state.selectedItem && state.selectedItem.project && state.selectedItem.project.members) {
+                                state.selectedItem.project.members = state.selectedItem.project.members.filter(m => m.id !== parseInt(userId));
+                                renderDetailsDrawer();
+                            }
                             loadCurrentView(false);
                         } else {
                             showToast(data.message || 'Error removing member.', 'error');
@@ -1936,11 +1972,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function openModal(modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden'; // Lock background scroll
+        document.body.classList.add('modal-active'); // Apply global blur
     }
 
     function closeModal(modal) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
+        document.body.classList.remove('modal-active'); // Remove global blur
         modal.querySelectorAll('input').forEach(i => i.value = '');
     }
 

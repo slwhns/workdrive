@@ -76,6 +76,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     
     // Project Member operations
+    Route::get('/projects/{project}/available-users', [ProjectController::class, 'getAvailableUsers'])->name('projects.members.available');
     Route::post('/projects/{project}/members', [ProjectController::class, 'addMember'])->name('projects.members.add');
     Route::delete('/projects/{project}/members/{user}', [ProjectController::class, 'removeMember'])->name('projects.members.remove');
     

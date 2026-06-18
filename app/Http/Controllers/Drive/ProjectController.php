@@ -11,6 +11,42 @@ use Illuminate\Support\Facades\DB;
 class ProjectController extends Controller
 {
     /**
+     * Get list of users available to be added to this project.
+     */
+    public function getAvailableUsers(Request $request, Project $project)
+    {
+        $currentUser = $request->user();
+
+        // Only creator, managers, or admin/superadmin can manage/view members
+        $isManager = DB::table('project_users')
+            ->where('project_id', $project->id)
+            ->where('user_id', $currentUser->id)
+            ->where('role', 'manager')
+            ->exists() || $project->created_by === $currentUser->id || in_array($currentUser->role, ['admin', 'superadmin']);
+
+        if (!$isManager) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized.'
+            ], 403);
+        }
+
+        $existingMemberIds = DB::table('project_users')
+            ->where('project_id', $project->id)
+            ->pluck('user_id');
+
+        $users = User::whereNotIn('id', $existingMemberIds)
+            ->select('id', 'name', 'email')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'users' => $users
+        ]);
+    }
+
+    /**
      * Add a member to the project by email.
      */
     public function addMember(Request $request, Project $project)
