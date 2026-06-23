@@ -28,6 +28,7 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            $request->session()->put('drive_scope', 'personal');
             return redirect()->intended('/');
         }
 

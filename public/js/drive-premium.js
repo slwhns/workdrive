@@ -1785,6 +1785,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
                 ` : ''}
+
+                ${(state.currentDriveScope === 'admin') ? `
+                <div class="mg-t-15" style="border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                    <div class="drawer-section-title">Shared Members</div>
+                    <div id="file-collaborators-list" class="d-flex fd-column gap-8">
+                        <div class="spinner-small" style="margin: 20px auto; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--accent-orange); border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite;"></div>
+                    </div>
+                    
+                    <div id="add-file-collaborator-section" class="mg-t-15">
+                        <div class="d-flex gap-6" style="display: flex; gap: 6px; align-items: center;">
+                            <input type="email" id="file-collaborator-email" class="form-control" placeholder="User email..." style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white; border: 1px solid var(--glass-border); border-radius: 6px; flex: 1;">
+                            <select id="file-collaborator-permission" class="form-control" style="padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.2) !important; color: white; border: 1px solid var(--glass-border); border-radius: 6px; width: 85px;">
+                                <option value="view">View</option>
+                                <option value="edit">Edit</option>
+                            </select>
+                            <button type="button" class="btn btn-primary" id="btn-add-file-collaborator" style="padding: 6px 12px; font-size: 12px; height: 34px;">Add</button>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
             </div>
             
             <div class="drawer-footer">
@@ -1953,6 +1973,98 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     })
                     .catch(err => showToast('Error removing member.', 'error'));
+                });
+            });
+        }
+
+        // Populate and bind File Collaborators (shares) if in Admin drive scope
+        if (state.currentDriveScope === 'admin') {
+            const listEl = document.getElementById('file-collaborators-list');
+            if (listEl) {
+                fetch(`/drive/files/${item.id}/shares`, {
+                    headers: { 'Accept': 'application/json' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        listEl.innerHTML = '';
+                        
+                        // Add Owner
+                        const ownerHtml = `
+                            <div class="d-flex jc-between ai-center pd-6 br-6" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                                <div class="d-flex fd-column overflow-hidden" style="display: flex; flex-direction: column; text-align: left; overflow: hidden; flex: 1;">
+                                    <span class="fs-12 fw-600 clr-white" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 12px; font-weight: 600; color: #fff;">${escapeHtml(data.owner.name)}</span>
+                                    <span class="fs-10 clr-grey2" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 10px; color: #aaa;">${escapeHtml(data.owner.email)}</span>
+                                </div>
+                                <span class="fs-10 clr-grey2" style="font-size: 10px; color: #aaa; font-style: italic; padding-right: 8px;">Owner</span>
+                            </div>
+                        `;
+                        listEl.insertAdjacentHTML('beforeend', ownerHtml);
+
+                        // Add Collaborators
+                        data.collaborators.forEach(collab => {
+                            const collabHtml = `
+                                <div class="d-flex jc-between ai-center pd-6 br-6" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                                    <div class="d-flex fd-column overflow-hidden" style="display: flex; flex-direction: column; text-align: left; overflow: hidden; flex: 1;">
+                                        <span class="fs-12 fw-600 clr-white" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 12px; font-weight: 600; color: #fff;">${escapeHtml(collab.user.name)}</span>
+                                        <span class="fs-10 clr-grey2" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 10px; color: #aaa;">${escapeHtml(collab.user.email)}</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                        <select onchange="updateFileCollaboratorRole('${item.id}', '${collab.id}', this.value)" style="padding: 2px 4px; font-size: 10px; background: rgba(0,0,0,0.3); color: white; border: 1px solid var(--glass-border); border-radius: 4px; border-color: rgba(255,255,255,0.15); width: 68px;">
+                                            <option value="view" ${collab.permission === 'view' ? 'selected' : ''}>View</option>
+                                            <option value="edit" ${collab.permission === 'edit' ? 'selected' : ''}>Edit</option>
+                                        </select>
+                                        <button type="button" class="btn-icon" onclick="revokeFileCollaboratorAccess('${item.id}', '${collab.id}')" title="Revoke access" style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;">
+                                            <i class="ri-close-circle-fill" style="color: #ff3344; font-size: 16px;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            listEl.insertAdjacentHTML('beforeend', collabHtml);
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    listEl.innerHTML = '<div class="fs-12 clr-red pd-10 text-center">Failed to load members.</div>';
+                });
+            }
+
+            // Bind add button for file collaborator
+            document.getElementById('btn-add-file-collaborator')?.addEventListener('click', function() {
+                const emailInput = document.getElementById('file-collaborator-email');
+                const permissionSelect = document.getElementById('file-collaborator-permission');
+                const email = emailInput?.value?.trim();
+                const permission = permissionSelect?.value || 'view';
+                
+                if (!email) return;
+
+                const btn = this;
+                btn.disabled = true;
+
+                fetch(`/drive/files/${item.id}/share`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email, permission: permission })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.status === 'success') {
+                        showToast(data.message);
+                        if (emailInput) emailInput.value = '';
+                        renderDetailsDrawer(); // refresh drawer
+                    } else {
+                        showToast(data.message || 'Error adding member.', 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    showToast('Error adding member.', 'error');
                 });
             });
         }
@@ -2364,6 +2476,50 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Attach global functions to window
+    window.updateFileCollaboratorRole = function(fileId, shareId, permission) {
+        fetch(`/drive/files/${fileId}/shares/${shareId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ permission: permission })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                renderDetailsDrawer(); // refresh drawer
+            } else {
+                showToast(data.message || 'Error updating permission.', 'error');
+            }
+        })
+        .catch(err => showToast('Error updating permission.', 'error'));
+    };
+
+    window.revokeFileCollaboratorAccess = function(fileId, shareId) {
+        if (!confirm('Are you sure you want to revoke access for this user?')) return;
+
+        fetch(`/drive/files/${fileId}/shares/${shareId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message);
+                renderDetailsDrawer(); // refresh drawer
+            } else {
+                showToast(data.message || 'Error revoking access.', 'error');
+            }
+        })
+        .catch(err => showToast('Error revoking access.', 'error'));
+    };
+
     window.updateCollaboratorRole = function(shareId, permission) {
         if (!state.selectedItem) return;
         const fileId = state.selectedItem.id;

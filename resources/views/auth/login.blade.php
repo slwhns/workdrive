@@ -151,6 +151,9 @@
     </div>
 
     <script>
+        // Reset drive scope to personal on login page load
+        localStorage.setItem('drive_scope', 'personal');
+
         document.getElementById('password-toggle').addEventListener('click', function() {
             const passwordInput = document.getElementById('password');
             const icon = document.getElementById('password-icon');
